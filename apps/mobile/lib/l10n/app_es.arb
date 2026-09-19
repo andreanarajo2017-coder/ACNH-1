@@ -1,0 +1,27 @@
+{
+  "@@locale": "es",
+  "appTitle": "Copiloto",
+  "@appTitle": {
+    "description": "Nombre de la aplicación (provisional, ver Q-01)."
+  },
+  "greeting": "Buenos días, {name}",
+  "@greeting": {
+    "description": "Saludo en la pantalla de inicio.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "whatDoYouNeed": "¿Qué necesitas?",
+  "whatTimeIsIt": "¿A qué hora es?",
+  "wantMeToOrganizeYourDay": "¿Quieres que te organice el día?",
+  "saveToInbox": "Guardar en Inbox",
+  "inferred": "inferido",
+  "nothingScheduledToday": "Hoy no tienes nada agendado",
+  "speak": "Hablar",
+  "write": "Escribir",
+  "checkingConnection": "Comprobando conexión con el servidor…",
+  "connectedToServer": "Conectado al servidor",
+  "connectionError": "No se pudo conectar con el servidor"
+}

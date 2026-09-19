@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+apps/*/node_modules/
+
+# Build output
+dist/
+build/
+apps/api/dist/
+
+# Env
+.env
+.env.local
+*.env.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Flutter / Dart
+apps/mobile/.dart_tool/
+apps/mobile/.flutter-plugins
+apps/mobile/.flutter-plugins-dependencies
+apps/mobile/.packages
+apps/mobile/build/
+apps/mobile/ios/Pods/
+apps/mobile/ios/.symlinks/
+apps/mobile/android/.gradle/
+apps/mobile/**/generated_plugin_registrant.dart
+
+# Generated OpenAPI client (regenerated in CI)
+apps/mobile/lib/generated/
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+
+# Coverage
+coverage/
