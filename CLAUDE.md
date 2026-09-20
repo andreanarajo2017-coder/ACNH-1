@@ -14,7 +14,7 @@ identificadores: inglés.
 
 Implementación por hitos, **M0 → M8 en orden** (sección 12 de la
 especificación); P1/P2 solo después de cerrar M8, salvo *feature flags*
-explícitos. Estado actual: **M0 completado** (ver `docs/decisions.md`).
+explícitos. Estado actual: **M1 completado** (ver `docs/decisions.md`).
 
 ## Estructura del repositorio
 
@@ -55,6 +55,14 @@ npm run openapi:generate            # genera openapi.json desde los esquemas Zod
 Variables de entorno: copiar `apps/api/.env.example` a `apps/api/.env`.
 Nunca commitear `.env` ni secretos reales.
 
+Los tests de integración (`test/*.test.ts`, salvo `health.test.ts`) corren
+contra un Postgres real (`DATABASE_URL`, por defecto
+`postgresql://copiloto:copiloto@localhost:5432/copiloto`) con la extensión
+`citext` habilitada y las migraciones aplicadas (`npm run db:migrate`).
+Los archivos de test corren en serie (`fileParallelism: false` en
+`vitest.config.ts`) porque comparten esa base y cada uno hace `TRUNCATE`
+entre tests — ver ADR-006.
+
 ### Mobile (`apps/mobile`)
 
 Requiere el SDK de Flutter instalado localmente (no disponible en el
@@ -93,6 +101,14 @@ curl http://localhost:3000/readyz   # 200 solo si la DB responde
   `user_id`; acceder al recurso de otro usuario devuelve `404`, nunca
   `403`. RLS de Postgres como defensa en profundidad además del filtro en
   la capa de datos (a partir de M2).
+- **Soft delete y emails:** `deleted_at` en vez de borrar filas; `users`
+  usa un índice único **parcial** en `email` (`WHERE deleted_at IS NULL`),
+  no un `UNIQUE` simple, para que una cuenta eliminada libere su email de
+  inmediato (ADR-005). Cualquier tabla nueva con una columna "única" que
+  también tenga soft delete debe seguir el mismo patrón.
+- **Refresh tokens:** opaco, hasheado en DB, rotativo; cada login/registro
+  emite su propia `family_id` (no se comparte entre dispositivos). Reusar
+  un token ya rotado o revocado quema el resto de esa cadena (AC-F01-04).
 - **Nunca inventar información (R-01):** un campo requerido ausente se
   convierte en una `Clarification`; el LLM nunca decide solo, el backend
   valida su salida contra los esquemas Zod.
@@ -134,6 +150,8 @@ Detenerse a preguntar solo ante decisiones difíciles de revertir.
 
 ## Próximo hito
 
-**M1 — Cuentas:** registro/login por email+contraseña (F01), `/me`,
-`/me/settings`, categorías semilla, eliminación de cuenta, límites de
-intentos de login. Ver sección 5 (F01) y sección 12 de la especificación.
+**M2 — Dominio base:** CRUD de personas, categorías, tareas, eventos,
+inbox, recordatorios (modelo), `GET /calendar`; Row-Level Security en
+Postgres + test parametrizado de aislamiento entre usuarios (404 al acceder
+al recurso de otro usuario, para cada recurso). Ver sección 5 (F05, F06,
+F08), sección 6 (modelo de datos) y sección 12 de la especificación.

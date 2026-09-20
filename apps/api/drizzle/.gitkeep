@@ -1,2 +1,0 @@
-Generated migrations land here via `npm run db:generate` once the domain
-schema (M2) exists in src/db/schema.ts.

@@ -12,6 +12,24 @@ jobs:
     defaults:
       run:
         working-directory: apps/api
+    # Integration tests (test/helpers/app.ts) run against a real Postgres
+    # instead of Testcontainers — see docs/decisions.md ADR-006.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: copiloto
+          POSTGRES_PASSWORD: copiloto
+          POSTGRES_DB: copiloto
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U copiloto -d copiloto"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://copiloto:copiloto@localhost:5432/copiloto
     steps:
       - uses: actions/checkout@v4
 
@@ -33,11 +51,20 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Enable citext extension
+        run: PGPASSWORD=copiloto psql -h localhost -U copiloto -d copiloto -c "CREATE EXTENSION IF NOT EXISTS citext;"
+
+      - name: Migrate database
+        run: npm run db:migrate
+
       - name: Test
         run: npm run test
 
       - name: Build
         run: npm run build
+
+      - name: Generate OpenAPI spec
+        run: npm run openapi:generate
 
   mobile:
     name: Mobile — analyze, test

@@ -6,6 +6,7 @@ apps/*/node_modules/
 dist/
 build/
 apps/api/dist/
+apps/api/openapi.json
 
 # Env
 .env
