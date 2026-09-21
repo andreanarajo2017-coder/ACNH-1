@@ -6,6 +6,9 @@ import { SystemClock } from './lib/clock.js';
 import { AnthropicProvider } from './lib/llm/anthropic-provider.js';
 import { FakeProvider } from './lib/llm/fake-provider.js';
 import { ConsoleMailer } from './lib/mailer.js';
+import { FakePushProvider } from './lib/push/fake-provider.js';
+import { FirebasePushProvider } from './lib/push/firebase-provider.js';
+import { startNotificationScheduler } from './scheduler/notification-scheduler.js';
 
 async function main() {
   const env = loadEnv();
@@ -22,18 +25,32 @@ async function main() {
     ? new AnthropicProvider(env.ANTHROPIC_API_KEY)
     : new FakeProvider();
 
+  // D-06: same dev-fallback rule as D-04's LlmProvider — never fall back to
+  // FakePushProvider in production.
+  if (!env.FCM_SERVICE_ACCOUNT_JSON && env.NODE_ENV === 'production') {
+    throw new Error('FCM_SERVICE_ACCOUNT_JSON is required in production (D-06).');
+  }
+  const pushProvider = env.FCM_SERVICE_ACCOUNT_JSON
+    ? new FirebasePushProvider(env.FCM_SERVICE_ACCOUNT_JSON)
+    : new FakePushProvider();
+
+  const clock = new SystemClock();
   const app = buildApp({
     env,
-    clock: new SystemClock(),
+    clock,
     pool,
     db: createDb(pool),
     mailer: new ConsoleMailer(),
     llmProvider,
     llmProviderName,
+    pushProvider,
   });
+
+  const boss = await startNotificationScheduler(env.DATABASE_URL, pool, clock, pushProvider);
 
   const shutdown = async (signal: string) => {
     app.log.info({ signal }, 'shutting down');
+    await boss.stop();
     await app.close();
     await pool.end();
     process.exit(0);

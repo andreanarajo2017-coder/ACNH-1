@@ -6,6 +6,7 @@ import { createDb } from '../src/db/client.js';
 import { FixedClock } from '../src/lib/clock.js';
 import { FakeProvider } from '../src/lib/llm/fake-provider.js';
 import type { Mailer } from '../src/lib/mailer.js';
+import { FakePushProvider } from '../src/lib/push/fake-provider.js';
 
 describe('health routes', () => {
   let app: FastifyInstance;
@@ -24,6 +25,7 @@ describe('health routes', () => {
       mailer: fakeMailer,
       llmProvider: new FakeProvider(),
       llmProviderName: 'fake',
+      pushProvider: new FakePushProvider(),
     });
     await app.ready();
   });

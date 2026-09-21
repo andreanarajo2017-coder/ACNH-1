@@ -9,6 +9,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   time,
   timestamp,
@@ -315,6 +316,10 @@ export const reminders = pgTable(
     offsetMinutes: integer('offset_minutes'),
     status: reminderStatusEnum('status').notNull().default('scheduled'),
     sentAt: timestamp('sent_at', { withTimezone: true }),
+    // M6: distinguishes the one auto-created reminder per item (F13's
+    // defaults — kept in sync with the item's due date/time) from reminders
+    // the user added by hand, which auto-sync never touches.
+    isDefault: boolean('is_default').notNull().default(false),
     ...timestamps,
   },
   (table) => [index('reminders_status_trigger_at_idx').on(table.status, table.triggerAt)],
@@ -354,6 +359,73 @@ export const aiInteractions = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('ai_interactions_user_created_idx').on(table.userId, table.createdAt)],
+);
+
+// --- M6: recordatorios y notificaciones (sección 5, F13/F16) ---
+
+export const devicePlatformEnum = pgEnum('device_platform', ['ios', 'android']);
+
+// No soft delete here (unlike ADR-005's users/email pattern): a push token
+// is a disposable registration, not user content — DELETE /v1/devices hard
+// deletes the row, so the unique index is a plain one, not partial.
+export const devices = pgTable(
+  'devices',
+  {
+    id: id(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    platform: devicePlatformEnum('platform').notNull(),
+    pushToken: text('push_token').notNull(),
+    appVersion: text('app_version'),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex('devices_user_token_idx').on(table.userId, table.pushToken)],
+);
+
+// F16: `reminder`/`upcoming_event` are F13's time-based reminders (task vs.
+// event); the rest are computed by the notification cycle itself.
+// `contextual_recommendation` is P2-reserved — modeled, never sent.
+export const notificationTypeEnum = pgEnum('notification_type', [
+  'reminder',
+  'upcoming_event',
+  'overdue_task',
+  'daily_summary',
+  'conflict_alert',
+  'contextual_recommendation',
+]);
+
+export const notificationTypeSettings = pgTable(
+  'notification_type_settings',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    type: notificationTypeEnum('type').notNull(),
+    enabled: boolean('enabled').notNull().default(true),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.type] })],
+);
+
+export const notificationLog = pgTable(
+  'notification_log',
+  {
+    id: id(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    type: notificationTypeEnum('type').notNull(),
+    // AC-F13-03/AC-F16-01 idempotency: a reminder's dedupe_key is its
+    // `reminder_id` (one send per reminder, ever); overdue_task/daily_summary
+    // key off `${type}:${localDate}` (one summary push per day).
+    dedupeKey: text('dedupe_key').notNull(),
+    sentAt: timestamp('sent_at', { withTimezone: true }).notNull(),
+    openedAt: timestamp('opened_at', { withTimezone: true }),
+    dismissedAt: timestamp('dismissed_at', { withTimezone: true }),
+  },
+  (table) => [uniqueIndex('notification_log_user_dedupe_idx').on(table.userId, table.dedupeKey)],
 );
 
 export const usersRelations = relations(users, ({ many, one }) => ({

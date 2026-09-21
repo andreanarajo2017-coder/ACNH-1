@@ -9,6 +9,8 @@ import { FixedClock } from '../../src/lib/clock.js';
 import { FakeProvider } from '../../src/lib/llm/fake-provider.js';
 import type { LlmProvider } from '../../src/lib/llm/provider.js';
 import type { Mailer } from '../../src/lib/mailer.js';
+import { FakePushProvider } from '../../src/lib/push/fake-provider.js';
+import type { PushProvider } from '../../src/lib/push/provider.js';
 
 const TEST_DATABASE_URL =
   process.env.DATABASE_URL ?? 'postgresql://copiloto:copiloto@localhost:5432/copiloto';
@@ -26,6 +28,7 @@ export class RecordingMailer implements Mailer {
 export async function createTestApp(
   initialTime = '2026-09-21T09:00:00-03:00',
   llmProvider: LlmProvider = new FakeProvider(),
+  pushProvider: PushProvider = new FakePushProvider(),
 ) {
   const env = loadEnv({ NODE_ENV: 'test', DATABASE_URL: TEST_DATABASE_URL } as NodeJS.ProcessEnv);
   const pool = createDbPool(env.DATABASE_URL);
@@ -38,15 +41,24 @@ export async function createTestApp(
 
   const clock = new FixedClock(new Date(initialTime));
   const mailer = new RecordingMailer();
-  const app = buildApp({ env, clock, pool, db, mailer, llmProvider, llmProviderName: 'fake' });
+  const app = buildApp({
+    env,
+    clock,
+    pool,
+    db,
+    mailer,
+    llmProvider,
+    llmProviderName: 'fake',
+    pushProvider,
+  });
   await app.ready();
 
-  return { app, db, pool, clock, mailer };
+  return { app, db, pool, clock, mailer, pushProvider };
 }
 
 export async function truncateAll(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
   await db.execute(
-    sql`TRUNCATE TABLE users, auth_identities, refresh_tokens, user_settings, categories, login_attempts, password_reset_tokens, people, tasks, events, inbox_items, item_relations, reminders, ai_interactions RESTART IDENTITY CASCADE`,
+    sql`TRUNCATE TABLE users, auth_identities, refresh_tokens, user_settings, categories, login_attempts, password_reset_tokens, people, tasks, events, inbox_items, item_relations, reminders, ai_interactions, devices, notification_type_settings, notification_log RESTART IDENTITY CASCADE`,
   );
 }
 

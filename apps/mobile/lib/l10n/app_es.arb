@@ -225,5 +225,13 @@
   "profileLogout": "Cerrar sesión",
   "profileLogoutConfirm": "¿Seguro que querés cerrar sesión?",
   "profileDeleteAccount": "Eliminar cuenta",
-  "profileDeleteAccountConfirm": "Esta acción no se puede deshacer. Se van a eliminar tus datos. ¿Seguro que querés eliminar tu cuenta?"
+  "profileDeleteAccountConfirm": "Esta acción no se puede deshacer. Se van a eliminar tus datos. ¿Seguro que querés eliminar tu cuenta?",
+
+  "profileNotificationTypesTitle": "Tipos de notificación",
+  "notificationTypeReminder": "Recordatorios",
+  "notificationTypeUpcomingEvent": "Eventos próximos",
+  "notificationTypeOverdueTask": "Tareas vencidas",
+  "notificationTypeDailySummary": "Resumen diario (push)",
+  "notificationTypeConflictAlert": "Conflictos de horario",
+  "notificationTypeContextualRecommendation": "Recomendaciones"
 }

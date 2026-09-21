@@ -14,7 +14,7 @@ identificadores: inglés.
 
 Implementación por hitos, **M0 → M8 en orden** (sección 12 de la
 especificación); P1/P2 solo después de cerrar M8, salvo *feature flags*
-explícitos. Estado actual: **M5 completado** (ver `docs/decisions.md`).
+explícitos. Estado actual: **M6 completado** (ver `docs/decisions.md`).
 
 ## Estructura del repositorio
 
@@ -161,17 +161,15 @@ Detenerse a preguntar solo ante decisiones difíciles de revertir.
 
 ## Próximo hito
 
-**M6 — Recordatorios y notificaciones:** scheduler (`pg-boss`, D-05) sobre
-Postgres en `apps/api`; FCM (Android) y APNs vía FCM (iOS, D-06); registro
-de dispositivos (`POST/DELETE /v1/devices`); recordatorios por tiempo
-(`trigger_type` `absolute`/`relative_to_start`, ya modelados desde M2) con
-defaults por tipo de ítem (evento 30 min antes, tarea con hora a la hora,
-tarea solo con fecha 09:00 locales); tabla `notification_type_settings`
-(ya en el esquema M1) conectada a ajustes reales por tipo desde Perfil;
-horario silencioso y tope diario (6 push no críticos, D-16/Clock para
-poder simular el reloj en tests); deduplicación por `dedupe_key` en
-`notification_log`; *deep links* desde la notificación a la pantalla
-correspondiente en `apps/mobile`. Ver F13 y F16 (sección 5), sección 12 y
-D-05/D-06 (sección 2) de la especificación. Criterio de salida: AC-F13-01
-a 03, AC-F16-01 a 03 con reloj simulado (`FixedClock`) — sin depender de
-que pase tiempo real en los tests.
+**M7 — Hoy:** `GET /v1/daily-summary` (F10) — agregación determinista, sin
+LLM, con las secciones y precedencia de la sección 5 (Importante → Familia
+→ Pendiente → Compras), límites de 5 por sección/12 en total, y el push
+diario ya disparado por el scheduler de M6 (`NotificationService.
+processDailySummary`, hoy con un cuerpo de texto simple — reemplazar por
+el contenido real de F10 una vez exista este endpoint, sin tocar la
+mecánica de horario/dedup/cap). `GET /v1/now` (F11, algoritmo 8.7) — 3
+acciones por defecto (máx. 5) con razón corta, sobre tareas elegibles
+(`pending`/`in_progress`, no pospuestas), usando el próximo evento y los
+minutos libres antes de él. Home (`apps/mobile`) consume ambos endpoints.
+Ver F10 y F11 (sección 5), sección 8.7 y sección 12 de la especificación.
+Criterio de salida: AC-F10-01 a 03, AC-F11-01 a 05.

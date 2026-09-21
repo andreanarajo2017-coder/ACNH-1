@@ -13,16 +13,19 @@ import { ApiError, TooManyRequestsError, ValidationError } from './lib/errors.js
 import type { Clock } from './lib/clock.js';
 import type { LlmProvider } from './lib/llm/provider.js';
 import type { Mailer } from './lib/mailer.js';
+import type { PushProvider } from './lib/push/provider.js';
 import { LoginRateLimiter } from './lib/login-rate-limiter.js';
 import { aiRoutes } from './modules/ai/ai.routes.js';
 import { AuthService } from './modules/auth/auth.service.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { calendarRoutes } from './modules/calendar/calendar.routes.js';
 import { categoriesRoutes } from './modules/categories/categories.routes.js';
+import { devicesRoutes } from './modules/devices/devices.routes.js';
 import { eventsRoutes } from './modules/events/events.routes.js';
 import { healthRoutes } from './modules/health/health.routes.js';
 import { inboxRoutes } from './modules/inbox/inbox.routes.js';
 import { meRoutes } from './modules/me/me.routes.js';
+import { notificationSettingsRoutes } from './modules/notifications/notification-settings.routes.js';
 import { peopleRoutes } from './modules/people/people.routes.js';
 import { remindersRoutes } from './modules/reminders/reminders.routes.js';
 import { tasksRoutes } from './modules/tasks/tasks.routes.js';
@@ -37,6 +40,7 @@ export interface AppDeps {
   mailer: Mailer;
   llmProvider: LlmProvider;
   llmProviderName: string;
+  pushProvider: PushProvider;
 }
 
 export function buildApp(deps: AppDeps): FastifyInstance {
@@ -150,6 +154,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       await eventsRoutes(instance, { clock: deps.clock });
       await inboxRoutes(instance, { clock: deps.clock });
       await remindersRoutes(instance, { clock: deps.clock });
+      await devicesRoutes(instance, { clock: deps.clock });
+      await notificationSettingsRoutes(instance);
       await calendarRoutes(instance);
       await aiRoutes(instance, {
         clock: deps.clock,

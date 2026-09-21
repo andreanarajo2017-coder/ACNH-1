@@ -9,6 +9,11 @@ const envSchema = z.object({
   JWT_ACCESS_SECRET: z.string().default('dev-access-secret-change-me'),
   JWT_REFRESH_SECRET: z.string().default('dev-refresh-secret-change-me'),
   ANTHROPIC_API_KEY: z.string().optional(),
+  // D-06: FCM (Android) / APNs via FCM (iOS) — service account JSON as a
+  // single-line string (matches how most hosts inject secrets). Optional
+  // like ANTHROPIC_API_KEY: absent outside production falls back to
+  // FakePushProvider (see server.ts).
+  FCM_SERVICE_ACCOUNT_JSON: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

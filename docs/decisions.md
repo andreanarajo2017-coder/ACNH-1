@@ -440,3 +440,122 @@ la regla 0.4 del documento de especificación.
   falla ahí, no se persiste corrupto. Revisar la rama "shopping_item
   bloquea Confirmar" cuando exista F09 (M9).
 - **Fecha:** 2026-09-21.
+
+## ADR-018 — Scheduler (M6): iteración por usuario con conexión RLS, no un rol que evite RLS
+
+- **Contexto:** `reminders`/`notification_type_settings`/`notification_log`/
+  `devices`/`ai_interactions` tienen RLS forzada (ADR-007). El ciclo de
+  notificaciones de pg-boss (D-05) necesita procesar a *todos* los
+  usuarios, no a uno autenticado por request — no hay ningún rol de
+  aplicación que evite RLS (superusuario/`BYPASSRLS`) en este proyecto.
+- **Decisión:** `notification-cycle.ts` lista usuarios activos desde la
+  conexión app-wide (`users` no tiene RLS) y, por cada uno, abre un
+  `pg.PoolClient` dedicado con `set_config('app.user_id', ...)` — el mismo
+  patrón que `plugins/auth.ts` usa por request y que
+  `test/helpers/app.ts#queryAsUser` ya usa en los tests. `NotificationService`
+  corre íntegramente dentro de ese scope por usuario.
+- **Alternativas:** (1) un rol Postgres separado con `BYPASSRLS` para el
+  scheduler — más rápido (una sola conexión, un `DELETE`/`SELECT` por
+  tabla) pero reintroduce exactamente el riesgo que ADR-007 documentó
+  (RLS como única defensa, sin el filtro `WHERE user_id` explícito) para
+  el único proceso que toca datos de todos los usuarios a la vez. (2)
+  agregar `user_id` como parámetro explícito a cada query del scheduler
+  sobre la conexión app-wide sin RLS — funciona, pero pierde la defensa en
+  profundidad que RLS da al resto de la app sin ganar nada a cambio.
+- **Consecuencias:** una conexión por usuario por ciclo (aceptable a esta
+  escala — app personal, no multi-tenant masivo); si el número de usuarios
+  crece lo suficiente para que esto importe, revisar un rol `BYPASSRLS`
+  dedicado solo al scheduler, documentado aparte. La purga de
+  `ai_interactions` (10.5, "limpieza" en D-05) reutiliza el mismo loop
+  por usuario en vez de abrir una tercera conexión por ciclo.
+- **Fecha:** 2026-09-21.
+
+## ADR-019 — Recordatorios por defecto (F13): `relative_to_start` lee el valor vivo del ítem; `is_default` distingue auto de manual
+
+- **Contexto:** F13 pide defaults por tipo de ítem (evento 30 min antes;
+  tarea con hora, a la hora; tarea solo con fecha, 09:00 locales) y que
+  "editar la hora de un evento reprograma sus recordatorios" (AC-F13-02)
+  sin que el usuario tenga que tocar el recordatorio a mano. El modelo de
+  `reminders` (M2) ya tenía `trigger_type` `absolute`/`relative_to_start`
+  con `offset_minutes`, pero ninguna lógica que cree o actualice filas.
+- **Decisión:** el evento y la tarea-con-hora usan `relative_to_start` con
+  `trigger_at = NULL` — `NotificationService.findDueReminders` calcula la
+  hora efectiva en cada ciclo uniendo con el `start_at`/`due_at` *vivo* de
+  la tarea/evento, así que reprogramar es gratis (no hay campo que
+  actualizar). La tarea solo-con-fecha no tiene un campo "hora" del que
+  derivar eso, así que su recordatorio es `absolute` con un `trigger_at`
+  calculado (`zonedTimeToUtc`, `lib/timezone.ts`) que sí hay que
+  recalcular a mano cuando cambia `due_date` (`DefaultRemindersService`).
+  Una columna nueva, `reminders.is_default`, marca la única fila que este
+  mecanismo posee por ítem — nunca toca los recordatorios que el usuario
+  agregó a mano por `POST /reminders`.
+- **Alternativas:** guardar siempre un `trigger_at` absoluto y
+  recalcularlo en cada `PATCH /tasks|events` — más simple de leer en el
+  scheduler, pero pierde el "gratis" de `relative_to_start` y obliga a
+  tocar la tabla `reminders` en cada edición de tarea/evento aunque no
+  cambie la fecha.
+- **Consecuencias:** `AC-F13-03` (idempotencia) se resuelve aparte, con el
+  índice único `(user_id, dedupe_key)` de `notification_log` — el
+  recordatorio en sí solo pasa a `sent` una vez que ese insert gana la
+  carrera, así corran uno o varios ciclos concurrentes sobre el mismo
+  usuario.
+- **Fecha:** 2026-09-21.
+
+## ADR-020 — F16: `reminder`/`upcoming_event` son "críticos" (sin horario silencioso ni tope); el resto no
+
+- **Contexto:** F16 dice que el horario silencioso y el tope diario (6)
+  aplican a "push no críticos" y que "los recordatorios de eventos
+  próximos y del usuario no cuentan para el tope" — sin definir en ningún
+  otro lugar qué hace a un tipo "crítico".
+- **Decisión:** `reminder` (recordatorios de tarea) y `upcoming_event`
+  (recordatorios de evento) son los únicos tipos críticos — se envían
+  apenas están vencidos, sin mirar horario silencioso ni el tope, porque
+  son los dos tipos con una hora de disparo explícita que el usuario
+  configuró (a diferencia de `overdue_task`/`daily_summary`, que son
+  resúmenes generados por el propio ciclo). El resto
+  (`overdue_task`/`daily_summary`/`conflict_alert`/
+  `contextual_recommendation`) respeta ambos: si su condición se cumple
+  dentro del horario silencioso, `nonCriticalAllowed` devuelve `false` ese
+  ciclo y el siguiente ciclo (ya fuera del horario) lo reintenta — como no
+  hay una fila que marcar "enviado" para estos tipos (no hay un
+  `reminder_id` detrás), el `dedupe_key` por día (`overdue_task:2026-09-25`)
+  es lo que evita reintentos infinitos una vez que sí se envía.
+- **Alternativas:** tratar los 6 tipos igual (todos sujetos a horario
+  silencioso/tope) — contradice literalmente la frase citada de F16.
+  Tratar los 6 como críticos — vacía de sentido el tope diario, que
+  existe justamente para limitar los resúmenes generados por el sistema.
+- **Consecuencias:** `notification-types.ts#CRITICAL_NOTIFICATION_TYPES`
+  es el único lugar que codifica esta regla — agregar un tipo nuevo
+  (`conflict_alert` cuando F17 se implemente en P1) requiere decidir
+  explícitamente en qué lista entra, no queda implícito.
+- **Fecha:** 2026-09-21.
+
+## ADR-021 — Mobile: `firebase_messaging` sin proyecto de Firebase configurado todavía; `devices` sin soft delete
+
+- **Contexto:** D-06 pide FCM (Android) y APNs vía FCM (iOS) del lado del
+  cliente. Este repo no tiene un proyecto de Firebase real (no hay
+  `google-services.json` ni `GoogleService-Info.plist`), y crear uno
+  requiere una cuenta/consola externa fuera del alcance de este entorno.
+- **Decisión:** se agregan `firebase_core`/`firebase_messaging` como
+  dependencias (matching D-06) y `PushService` envuelve toda llamada a
+  Firebase en `try/catch` — sin proyecto configurado, `registerDevice()`
+  falla silenciosamente (se loguea y se sigue) en vez de romper el login
+  o los tests, el mismo patrón de degradación que M5 usa cuando falla la
+  llamada a la IA. `apps/mobile/test` y CI (`flutter analyze`/`flutter
+  test`, sin build nativo) no necesitan el proyecto real para pasar. La
+  tabla `devices` (backend) no sigue el patrón de soft delete +
+  índice único parcial de ADR-005: un push token es una credencial
+  desechable, no contenido del usuario, así que `DELETE /v1/devices/:id`
+  borra la fila.
+- **Alternativas:** bloquear M6 hasta tener un proyecto de Firebase real
+  — no hay forma de crear uno desde este entorno; postergar toda la parte
+  mobile de F16 a un hito posterior — contradice el criterio de salida de
+  M6 (CLAUDE.md), que pide *deep links* en `apps/mobile`.
+- **Consecuencias:** antes de un build nativo real (`flutter build
+  apk`/`ios`, fuera del CI actual) hace falta crear el proyecto de
+  Firebase, bajar `google-services.json`/`GoogleService-Info.plist` y
+  aplicar el plugin de Gradle — pendiente, sin bloquear M6. La lógica de
+  *deep link* (`resolveDeepLinkRoute`) es pura y no depende de Firebase,
+  así que está probada (`test/core/deep_link_resolver_test.dart`)
+  independientemente de ese pendiente.
+- **Fecha:** 2026-09-21.

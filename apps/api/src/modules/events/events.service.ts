@@ -4,6 +4,7 @@ import { events } from '../../db/schema.js';
 import type { Clock } from '../../lib/clock.js';
 import { NotFoundError } from '../../lib/errors.js';
 import { decodeCursor, encodeCursor, type CursorPage } from '../../lib/pagination.js';
+import { DefaultRemindersService } from '../reminders/default-reminders.service.js';
 import type {
   CreateEventBody,
   EventResponse,
@@ -12,10 +13,14 @@ import type {
 } from './events.schemas.js';
 
 export class EventsService {
+  private defaultReminders: DefaultRemindersService;
+
   constructor(
     private db: Db,
     private clock: Clock,
-  ) {}
+  ) {
+    this.defaultReminders = new DefaultRemindersService(db, clock);
+  }
 
   async list(userId: string, query: ListEventsQuery): Promise<CursorPage<EventResponse>> {
     const cursor = query.cursor ? decodeCursor(query.cursor) : null;
@@ -69,6 +74,7 @@ export class EventsService {
         updatedAt: now,
       })
       .returning();
+    await this.defaultReminders.syncForEvent(userId, row!);
     return toEventResponse(row!);
   }
 
@@ -98,6 +104,9 @@ export class EventsService {
       })
       .where(eq(events.id, id))
       .returning();
+    if (body.all_day !== undefined || body.start_at !== undefined) {
+      await this.defaultReminders.syncForEvent(userId, row!);
+    }
     return toEventResponse(row!);
   }
 
@@ -107,6 +116,7 @@ export class EventsService {
       .update(events)
       .set({ deletedAt: this.clock.now(), updatedAt: this.clock.now() })
       .where(eq(events.id, id));
+    await this.defaultReminders.cancelAllForTarget(userId, 'event', id);
   }
 
   private async findOwned(userId: string, id: string) {

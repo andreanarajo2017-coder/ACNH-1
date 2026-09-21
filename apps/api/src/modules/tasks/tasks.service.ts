@@ -4,6 +4,7 @@ import { tasks } from '../../db/schema.js';
 import type { Clock } from '../../lib/clock.js';
 import { ApiError, NotFoundError } from '../../lib/errors.js';
 import { decodeCursor, encodeCursor, type CursorPage } from '../../lib/pagination.js';
+import { DefaultRemindersService } from '../reminders/default-reminders.service.js';
 import type {
   CreateTaskBody,
   ListTasksQuery,
@@ -21,10 +22,14 @@ const POSTPONE_PRESET_MS: Record<'later_today' | 'tomorrow' | 'next_week', numbe
 };
 
 export class TasksService {
+  private defaultReminders: DefaultRemindersService;
+
   constructor(
     private db: Db,
     private clock: Clock,
-  ) {}
+  ) {
+    this.defaultReminders = new DefaultRemindersService(db, clock);
+  }
 
   async list(userId: string, query: ListTasksQuery): Promise<CursorPage<TaskResponse>> {
     const cursor = query.cursor ? decodeCursor(query.cursor) : null;
@@ -89,6 +94,7 @@ export class TasksService {
         updatedAt: now,
       })
       .returning();
+    await this.defaultReminders.syncForTask(userId, row!);
     return toTaskResponse(row!);
   }
 
@@ -120,6 +126,9 @@ export class TasksService {
       })
       .where(eq(tasks.id, id))
       .returning();
+    if (body.due_date !== undefined || body.due_at !== undefined) {
+      await this.defaultReminders.syncForTask(userId, row!);
+    }
     return toTaskResponse(row!);
   }
 
@@ -129,6 +138,7 @@ export class TasksService {
       .update(tasks)
       .set({ deletedAt: this.clock.now(), updatedAt: this.clock.now() })
       .where(eq(tasks.id, id));
+    await this.defaultReminders.cancelAllForTarget(userId, 'task', id);
   }
 
   // AC-F06-01: completing fixes completed_at.
@@ -182,6 +192,9 @@ export class TasksService {
     }
 
     const [row] = await this.db.update(tasks).set(patch).where(eq(tasks.id, id)).returning();
+    if (patch.dueAt !== undefined || patch.dueDate !== undefined) {
+      await this.defaultReminders.syncForTask(userId, row!);
+    }
     return toTaskResponse(row!);
   }
 

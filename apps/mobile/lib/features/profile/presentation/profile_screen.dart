@@ -8,6 +8,8 @@ import '../../../core/permissions/notification_permission_service.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../auth/application/session_controller.dart';
 import '../../me/application/me_providers.dart';
+import '../../notification_settings/application/notification_settings_providers.dart';
+import '../../notification_settings/data/notification_type_setting.dart';
 
 final _notificationStatusProvider = FutureProvider.autoDispose<PermissionStatus>(
   (ref) => NotificationPermissionService().status(),
@@ -68,12 +70,31 @@ class ProfileScreen extends ConsumerWidget {
     ref.invalidate(settingsProvider);
   }
 
+  // F16: "configurables por tipo desde Perfil" — each switch PATCHes just
+  // its own row; the API returns the full list back, kept as the new cache.
+  Future<void> _toggleNotificationType(WidgetRef ref, NotificationType type, bool value) async {
+    await ref
+        .read(notificationSettingsApiProvider)
+        .update([NotificationTypeSetting(type: type, enabled: value)]);
+    ref.invalidate(notificationTypeSettingsProvider);
+  }
+
+  String _notificationTypeLabel(AppLocalizations l10n, NotificationType type) => switch (type) {
+    NotificationType.reminder => l10n.notificationTypeReminder,
+    NotificationType.upcomingEvent => l10n.notificationTypeUpcomingEvent,
+    NotificationType.overdueTask => l10n.notificationTypeOverdueTask,
+    NotificationType.dailySummary => l10n.notificationTypeDailySummary,
+    NotificationType.conflictAlert => l10n.notificationTypeConflictAlert,
+    NotificationType.contextualRecommendation => l10n.notificationTypeContextualRecommendation,
+  };
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final meAsync = ref.watch(meProvider);
     final settingsAsync = ref.watch(settingsProvider);
     final notificationStatusAsync = ref.watch(_notificationStatusProvider);
+    final notificationTypesAsync = ref.watch(notificationTypeSettingsProvider);
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.navProfile)),
@@ -123,6 +144,31 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                 );
               },
+            ),
+            const Divider(),
+            notificationTypesAsync.when(
+              loading: () => const SizedBox.shrink(),
+              error: (error, stackTrace) => const SizedBox.shrink(),
+              data: (types) => Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        l10n.profileNotificationTypesTitle,
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                    ),
+                  ),
+                  for (final setting in types)
+                    SwitchListTile(
+                      title: Text(_notificationTypeLabel(l10n, setting.type)),
+                      value: setting.enabled,
+                      onChanged: (value) => _toggleNotificationType(ref, setting.type, value),
+                    ),
+                ],
+              ),
             ),
             const Divider(),
             ListTile(

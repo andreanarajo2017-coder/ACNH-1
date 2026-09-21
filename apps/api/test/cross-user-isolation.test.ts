@@ -20,6 +20,7 @@ describe('cross-user resource isolation (R-13)', () => {
   let inboxItemId: string;
   let reminderId: string;
   let parseId: string;
+  let deviceId: string;
 
   function request(
     method: ApiMethod,
@@ -90,6 +91,12 @@ describe('cross-user resource isolation (R-13)', () => {
       text: 'Comprar leche mañana.',
     });
     parseId = parseRes.json().parse_id;
+
+    const device = await request('POST', '/v1/devices', tokenA, {
+      platform: 'ios',
+      push_token: 'device-token-a',
+    });
+    deviceId = device.json().id;
   });
 
   afterAll(async () => {
@@ -115,6 +122,7 @@ describe('cross-user resource isolation (R-13)', () => {
     ['DELETE', () => `/v1/inbox/${inboxItemId}`, undefined],
     ['PATCH', () => `/v1/reminders/${reminderId}`, { status: 'dismissed' }],
     ['DELETE', () => `/v1/reminders/${reminderId}`, undefined],
+    ['DELETE', () => `/v1/devices/${deviceId}`, undefined],
     [
       'POST',
       () => `/v1/ai/parse/${parseId}/commit`,
