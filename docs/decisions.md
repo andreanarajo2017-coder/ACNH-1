@@ -217,3 +217,77 @@ la regla 0.4 del documento de especificación.
   en un contenedor sin este SDK persistido, hay que reinstalarlo (este
   ADR documenta el comando exacto) antes de tocar `apps/mobile`.
 - **Fecha:** 2026-09-21.
+
+## ADR-010 — Cliente Dart escrito a mano en vez de generado desde OpenAPI (M3)
+
+- **Contexto:** D-01/ADR-002 previeron generar el cliente Dart desde
+  `openapi.json` en cuanto hubiera endpoints `/v1`. Al empezar M3 (con
+  endpoints de M1+M2 ya expuestos) se intentó `npx
+  @openapitools/openapi-generator-cli` para generarlo: falla porque
+  descarga el `.jar` desde `central.sonatype.com`, host no permitido por
+  la política de red del proxy de este entorno (`request blocked: no rule
+  or allowlist entry allows host`).
+- **Decisión:** `apps/mobile/lib/core/api` se escribe a mano: modelos
+  tipados (`fromJson`/`toJson`) y clases de cliente por recurso sobre
+  `dio`, reflejando 1 a 1 los esquemas Zod del backend (`*.schemas.ts` en
+  `apps/api`). Cambiar un esquema del backend exige actualizar el modelo
+  Dart correspondiente a mano; no hay generación automática todavía.
+- **Alternativas:** instalar el generador desde otra fuente (Homebrew,
+  binario de GitHub Releases) — no se probó por estar fuera del scope de
+  esta sesión y por la misma restricción de red podría fallar igual; un
+  cliente HTTP no tipado (`dynamic`/`Map`) — pierde el chequeo en tiempo
+  de compilación que `flutter analyze` puede dar hoy.
+- **Consecuencias:** riesgo de divergencia entre el contrato real de la
+  API y los modelos Dart si no se actualizan juntos; revisar este ADR
+  cuando un entorno con acceso a `central.sonatype.com` (o un generador
+  alternativo) esté disponible para retomar la generación automática.
+- **Fecha:** 2026-09-21.
+
+## ADR-011 — Router (`go_router`) dirigido por el estado de sesión de Riverpod
+
+- **Contexto:** M3 necesita redirigir según sesión (sin token → login; token
+  pero onboarding sin terminar → onboarding; autenticado y con onboarding →
+  shell) sin que cada pantalla de auth/onboarding navegue manualmente tras
+  su acción (login/registro/logout ya no llaman `context.go` — ver
+  `login_screen.dart`, `register_screen.dart`).
+- **Decisión:** `appRouterProvider` (`lib/core/router/app_router.dart`) es un
+  `Provider<GoRouter>` cuyo `redirect` lee `sessionControllerProvider` y
+  cuyo `refreshListenable` es un `ChangeNotifier` que se suscribe a ese
+  mismo provider vía `ref.listen` — así go_router reevalúa `redirect` cada
+  vez que cambia el estado de sesión, no solo al navegar. Una ruta
+  `/splash` cubre la ventana asíncrona de `AuthStatus.unknown` (bootstrap
+  leyendo el token guardado) para no mostrar login/home de forma incorrecta
+  antes de resolver la sesión.
+- **Alternativas:** cada pantalla de auth navega explícitamente tras su
+  acción (`context.go('/')` en login, etc.) — se descartó: duplica la
+  lógica de "a dónde ir según el estado" en cada pantalla y diverge
+  fácilmente del router.
+- **Consecuencias:** el router se reconstruye una sola vez (no
+  `autoDispose`); cualquier pantalla nueva que dependa de sesión debe
+  confiar en el redirect en vez de navegar manualmente después de
+  login/logout/onboarding. `test/widget_test.dart` sobreescribe
+  `tokenStorageProvider` para no tocar el canal de plataforma real de
+  `flutter_secure_storage` en tests de widgets.
+- **Fecha:** 2026-09-21.
+
+## ADR-012 — Edición de eventos sin `GET /events/:id`; eventos de todo el
+  día no reprograman fecha/hora desde la app (M3)
+
+- **Contexto:** `GET /calendar` (M2) devuelve filas ya con todos los campos
+  de un evento (`CalendarItem`), pero no existe un `GET /events/:id`
+  individual; además `EventsApi.update` (M2) no acepta `all_day`/
+  `start_date`, solo `start_at`/`end_at` con hora.
+- **Decisión:** `CalendarScreen` pasa el `CalendarItem` tocado directamente
+  como `extra` de go_router hacia `EventFormScreen` (mismo patrón que
+  `PersonDetailScreen` ya usaba con `Person`), sin pedirlo de nuevo a la
+  API. Al editar un evento de todo el día, el formulario oculta los
+  controles de fecha/hora y solo permite cambiar título/ubicación/
+  categoría/persona, con un aviso (`eventsAllDayCantReschedule`).
+- **Alternativas:** agregar `GET /events/:id` y extender `PATCH
+  /events/:id` para aceptar `all_day`/`start_date` — trabajo de backend
+  fuera del alcance de "pantallas de Calendario" en `apps/mobile`; se
+  puede retomar si M3 necesita reprogramar eventos de todo el día.
+- **Consecuencias:** reprogramar la fecha de un evento de todo el día
+  requiere borrarlo y crearlo de nuevo por ahora; revisar este ADR si se
+  extiende `PATCH /v1/events/:id` en un hito posterior.
+- **Fecha:** 2026-09-21.

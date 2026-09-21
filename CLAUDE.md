@@ -14,7 +14,7 @@ identificadores: inglés.
 
 Implementación por hitos, **M0 → M8 en orden** (sección 12 de la
 especificación); P1/P2 solo después de cerrar M8, salvo *feature flags*
-explícitos. Estado actual: **M2 completado** (ver `docs/decisions.md`).
+explícitos. Estado actual: **M3 completado** (ver `docs/decisions.md`).
 
 ## Estructura del repositorio
 
@@ -153,9 +153,12 @@ Detenerse a preguntar solo ante decisiones difíciles de revertir.
 
 ## Próximo hito
 
-**M3 — App base manual:** Onboarding (F02), navegación, Tareas, Calendario,
-Personas, Inbox (alta manual), Perfil — todo en `apps/mobile` (Flutter)
-consumiendo la API que ya expone M2. Ver sección 5 (F02, F06, F07 P0),
-sección 9 (pantallas) y sección 12 de la especificación. Recordar generar
-el cliente Dart desde `openapi.json` en cuanto haya SDK de Flutter
-disponible (ver ADR-002 y ADR-003).
+**M4 — Servicio de IA:** `LlmProvider` + `FakeProvider` + adaptador real,
+armado de contexto y validaciones (sección 8.4), endpoints `POST /v1/ai/parse`
+y `POST /v1/ai/commit` en `apps/api`, fixtures G-01…G-14, límites y
+retención (10.4). Ver sección 8 completa y sección 12 de la especificación.
+Criterio de salida: tests de fixtures en verde con `FakeProvider`; `commit`
+atómico e idempotente. La UI de captura con IA (F03/F04, "Organizar con
+IA" desde el Inbox) es M5, después de que `/ai/parse` y `/ai/commit`
+existan — por ahora `apps/mobile` solo guarda capturas manuales en el
+Inbox (ver `capture_sheet.dart`).
