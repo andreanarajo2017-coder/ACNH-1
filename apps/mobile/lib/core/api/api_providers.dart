@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../features/ai/data/ai_api.dart';
 import '../../features/auth/data/auth_api.dart';
 import '../../features/categories/data/categories_api.dart';
 import '../../features/events/data/events_api.dart';
@@ -71,3 +72,4 @@ final calendarApiProvider = Provider<CalendarApi>(
   (ref) => CalendarApi(ref.watch(authorizedDioProvider)),
 );
 final inboxApiProvider = Provider<InboxApi>((ref) => InboxApi(ref.watch(authorizedDioProvider)));
+final aiApiProvider = Provider<AiApi>((ref) => AiApi(ref.watch(authorizedDioProvider)));

@@ -14,7 +14,7 @@ identificadores: inglés.
 
 Implementación por hitos, **M0 → M8 en orden** (sección 12 de la
 especificación); P1/P2 solo después de cerrar M8, salvo *feature flags*
-explícitos. Estado actual: **M4 completado** (ver `docs/decisions.md`).
+explícitos. Estado actual: **M5 completado** (ver `docs/decisions.md`).
 
 ## Estructura del repositorio
 
@@ -161,17 +161,17 @@ Detenerse a preguntar solo ante decisiones difíciles de revertir.
 
 ## Próximo hito
 
-**M5 — Captura y vista previa:** conectar `apps/mobile` a `POST
-/v1/ai/parse` y `POST /v1/ai/parse/{parse_id}/commit` (ya expuestos desde
-M4): la hoja "¿Qué necesitas?" (`capture_sheet.dart`) deja de guardar
-directo al Inbox y pasa a llamar `/ai/parse`; vista previa editable por
-ítem (tipo, título, fecha, hora, persona, categoría — con etiqueta
-"inferido" en los campos de `inferred_fields`), una pregunta de aclaración
-a la vez (`clarifications`, máx. 3 rondas), confirmar → `commit` /
-descartar → "Guardar en Inbox". Inbox suma la acción "Organizar con IA"
-por ítem. Degradación si el parse tarda > 15 s o falla: mensaje claro +
-"Guardar en Inbox" (AC-F03-03, ya cubierto en el backend por `status:
-'error'`). Ver sección 8 (contrato ya implementado), F03/F04/F05 (sección
-5) y sección 9 (wireframes de vista previa y aclaraciones) de la
-especificación. Criterio de salida: AC-F03, AC-F04, AC-F05 end-to-end en
-la app (no solo en `apps/api`, ya cubiertas ahí desde M4).
+**M6 — Recordatorios y notificaciones:** scheduler (`pg-boss`, D-05) sobre
+Postgres en `apps/api`; FCM (Android) y APNs vía FCM (iOS, D-06); registro
+de dispositivos (`POST/DELETE /v1/devices`); recordatorios por tiempo
+(`trigger_type` `absolute`/`relative_to_start`, ya modelados desde M2) con
+defaults por tipo de ítem (evento 30 min antes, tarea con hora a la hora,
+tarea solo con fecha 09:00 locales); tabla `notification_type_settings`
+(ya en el esquema M1) conectada a ajustes reales por tipo desde Perfil;
+horario silencioso y tope diario (6 push no críticos, D-16/Clock para
+poder simular el reloj en tests); deduplicación por `dedupe_key` en
+`notification_log`; *deep links* desde la notificación a la pantalla
+correspondiente en `apps/mobile`. Ver F13 y F16 (sección 5), sección 12 y
+D-05/D-06 (sección 2) de la especificación. Criterio de salida: AC-F13-01
+a 03, AC-F16-01 a 03 con reloj simulado (`FixedClock`) — sin depender de
+que pase tiempo real en los tests.

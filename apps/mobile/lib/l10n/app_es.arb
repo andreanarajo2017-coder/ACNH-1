@@ -96,9 +96,12 @@
   "navCalendar": "Calendario",
   "navPeople": "Personas",
   "navProfile": "Perfil",
-  "captureFallbackExplainer": "Por ahora lo guardamos en tu Inbox para que lo organices vos (la organización automática con IA llega pronto).",
+  "captureExplainer": "Vamos a organizarlo por vos — vas a poder revisar y confirmar antes de guardar nada.",
   "captureHint": "Ej: Comprar leche mañana",
   "captureSaved": "Guardado en tu Inbox",
+  "captureOrganize": "Organizar",
+  "captureOrganizing": "Organizando…",
+  "captureParseFailed": "No pudimos organizar esto ahora. Podés guardarlo en tu Inbox y organizarlo más tarde.",
 
   "save": "Guardar",
   "delete": "Eliminar",
@@ -176,6 +179,43 @@
   "inboxDiscard": "Descartar",
   "inboxDeleteTitle": "Eliminar de tu inbox",
   "inboxDeleteConfirm": "¿Seguro que querés eliminar esto? No se puede deshacer.",
+  "inboxOrganizeWithAi": "Organizar con IA",
+  "inboxConvertToTask": "Convertir en tarea",
+  "inboxOrganizeAll": "Organizar todo",
+
+  "aiPreviewTitle": "Revisar captura",
+  "aiPreviewEmpty": "No encontramos nada para organizar en este texto.",
+  "aiPreviewConfirm": "Confirmar",
+  "aiPreviewDiscard": "Descartar",
+  "aiPreviewRemoveItem": "Quitar ítem",
+  "aiPreviewInferred": "inferido",
+  "aiAnswerSubmit": "Responder",
+  "aiClarificationRoundsExceeded": "Ya hiciste 3 preguntas — completá lo que falte a mano, tocando el lápiz de cada ítem.",
+  "aiShoppingNotYet": "Las listas de compras todavía no están disponibles. Quitá este ítem para poder confirmar.",
+  "aiPersonUnresolved": "«{name}» no está en tus Personas",
+  "@aiPersonUnresolved": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "aiAddPerson": "Agregar",
+  "aiAddPersonRelationship": "¿Qué relación tenés con {name}?",
+  "@aiAddPersonRelationship": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "aiRelationAfter": "{from}: después de {to}",
+  "@aiRelationAfter": {
+    "placeholders": { "from": { "type": "String" }, "to": { "type": "String" } }
+  },
+  "aiRelationBefore": "{from}: antes de {to}",
+  "@aiRelationBefore": {
+    "placeholders": { "from": { "type": "String" }, "to": { "type": "String" } }
+  },
+  "aiRelationRelated": "{from}: relacionado con {to}",
+  "@aiRelationRelated": {
+    "placeholders": { "from": { "type": "String" }, "to": { "type": "String" } }
+  },
+  "aiEditItem": "Editar ítem",
+  "aiEditDateRequired": "Elegí una fecha",
+  "aiEditTimeRequired": "Elegí una hora",
 
   "profileTimezone": "Zona horaria",
   "profileDailySummary": "Resumen diario",

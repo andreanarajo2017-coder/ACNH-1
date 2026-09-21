@@ -7,6 +7,8 @@ import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/auth/presentation/reset_password_screen.dart';
+import '../../features/ai/data/ai_models.dart';
+import '../../features/ai/presentation/parse_preview_screen.dart';
 import '../../features/events/data/event_models.dart';
 import '../../features/events/presentation/calendar_screen.dart';
 import '../../features/events/presentation/event_form_screen.dart';
@@ -93,6 +95,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // Full-screen routes pushed above the shell (no bottom nav).
       GoRoute(path: '/inbox', parentNavigatorKey: _rootNavigatorKey, builder: (context, state) => const InboxScreen()),
+      GoRoute(
+        path: '/capture/preview',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final args = state.extra as ParsePreviewArgs;
+          return ParsePreviewScreen(initial: args.response, sourceText: args.sourceText, inboxItemId: args.inboxItemId);
+        },
+      ),
       GoRoute(
         path: '/tasks/new',
         parentNavigatorKey: _rootNavigatorKey,

@@ -408,3 +408,35 @@ la regla 0.4 del documento de especificación.
   la UI de M5 (F03/F04) deberá filtrar o deshabilitar la confirmación de
   ítems `shopping_item` hasta M9.
 - **Fecha:** 2026-09-21.
+
+## ADR-017 — Vista previa (mobile): editar un ítem vacía `missing_fields`; `shopping_item` bloquea Confirmar
+
+- **Contexto:** M5 conecta `apps/mobile` a `/ai/parse`/`/commit` (ya
+  construidos en M4). Dos huecos que el backend deja abiertos a propósito
+  para que los resuelva el cliente: (1) 8.4 dice que "se ofrece completar
+  a mano" después de 3 rondas de aclaración, pero no dice qué pasa con
+  `missing_fields` cuando el usuario edita el ítem directamente en vez de
+  responder una aclaración; (2) ADR-016 hace que el backend rechace todo
+  el `commit` si algún ítem es `shopping_item` (F09/P1 no existe todavía),
+  pero la vista previa sigue mostrando esos ítems (fieles al fixture G-09).
+- **Decisión:** (1) `showEditParsedItemSheet` siempre guarda el ítem
+  editado con `missing_fields: []` — el formulario ya exige los campos
+  requeridos por tipo (fecha+hora o `all_day` en un evento, título
+  siempre), así que la edición manual es en sí misma la resolución; el
+  botón "Editar ítem" queda disponible en cualquier momento, no solo
+  después de agotar las 3 rondas. (2) `ParsePreviewScreen._canConfirm` es
+  `false` mientras quede algún ítem `shopping_item` en la lista — el
+  usuario tiene que quitarlo explícitamente (R-02: nada desaparece solo)
+  para poder confirmar el resto.
+- **Alternativas:** (1) que el cliente vuelva a llamar a `/ai/parse` tras
+  cada edición manual para que el backend re-derive `missing_fields`
+  (round-trip innecesario: el formulario ya validó localmente lo que el
+  backend habría verificado). (2) quitar los ítems `shopping_item` en
+  silencio antes de confirmar (viola R-02/R-01 — el usuario nunca ve que
+  algo desapareció).
+- **Consecuencias:** el backend sigue siendo la autoridad final — su
+  propio esquema Zod por tipo (`createTaskBodySchema`/`createEventBodySchema`)
+  revalida en `commit` de todas formas, así que un ítem mal formado
+  falla ahí, no se persiste corrupto. Revisar la rama "shopping_item
+  bloquea Confirmar" cuando exista F09 (M9).
+- **Fecha:** 2026-09-21.

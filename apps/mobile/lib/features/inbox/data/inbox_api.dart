@@ -42,6 +42,22 @@ class InboxApi {
     }
   }
 
+  /// F05's "Convertir en tarea" (manual, no AI) still needs the raw
+  /// capture out of the unprocessed list — the AI path does this as a
+  /// side effect of commit (`inbox_item_id`), this is the manual
+  /// equivalent.
+  Future<InboxItem> markProcessed(String id) async {
+    try {
+      final response = await _dio.patch<Map<String, dynamic>>(
+        '/v1/inbox/$id',
+        data: {'status': 'processed'},
+      );
+      return InboxItem.fromJson(response.data!);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   Future<void> delete(String id) async {
     try {
       await _dio.delete('/v1/inbox/$id');

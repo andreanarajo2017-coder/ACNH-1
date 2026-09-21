@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../core/api/api_exception.dart';
 import '../../../core/api/api_providers.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../ai/data/ai_models.dart';
+import '../../tasks/application/tasks_providers.dart';
 import '../application/inbox_providers.dart';
 import '../data/inbox_models.dart';
 
@@ -34,6 +38,38 @@ class InboxItemTile extends ConsumerWidget {
     _invalidateAll(ref);
   }
 
+  // AC-F05-02: manual conversion never calls the AI — title is exactly the
+  // captured text, the user can refine it afterwards from Tareas.
+  Future<void> _convertToTask(WidgetRef ref) async {
+    await ref.read(tasksApiProvider).create(title: item.rawText);
+    await ref.read(inboxApiProvider).markProcessed(item.id);
+    ref.invalidate(tasksProvider(noTaskFilter));
+    _invalidateAll(ref);
+  }
+
+  Future<void> _organizeWithAi(BuildContext context, WidgetRef ref) async {
+    final l10n = AppLocalizations.of(context)!;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    ParseResponse? response;
+    try {
+      response = await ref.read(aiApiProvider).parse(text: item.rawText, capturedAt: item.capturedAt);
+    } on ApiException {
+      response = null;
+    }
+    if (!context.mounted) return;
+    Navigator.of(context, rootNavigator: true).pop(); // close the loading dialog
+    if (response == null || response.status == ParseStatus.error) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.captureParseFailed)));
+      return;
+    }
+    if (!context.mounted) return;
+    context.push('/capture/preview', extra: ParsePreviewArgs(response: response, inboxItemId: item.id));
+  }
+
   void _invalidateAll(WidgetRef ref) {
     ref.invalidate(unprocessedInboxProvider);
     for (final status in InboxStatus.values) {
@@ -55,12 +91,17 @@ class InboxItemTile extends ConsumerWidget {
       subtitle: Text(subtitle),
       trailing: PopupMenuButton<String>(
         onSelected: (value) {
+          if (value == 'organize') _organizeWithAi(context, ref);
+          if (value == 'convert') _convertToTask(ref);
           if (value == 'discard') _discard(ref);
           if (value == 'delete') _delete(context, ref);
         },
         itemBuilder: (context) => [
-          if (item.status == InboxStatus.unprocessed)
+          if (item.status == InboxStatus.unprocessed) ...[
+            PopupMenuItem(value: 'organize', child: Text(l10n.inboxOrganizeWithAi)),
+            PopupMenuItem(value: 'convert', child: Text(l10n.inboxConvertToTask)),
             PopupMenuItem(value: 'discard', child: Text(l10n.inboxDiscard)),
+          ],
           PopupMenuItem(value: 'delete', child: Text(l10n.delete)),
         ],
       ),
