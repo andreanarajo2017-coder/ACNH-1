@@ -10,3 +10,6 @@ analyzer:
     - lib/generated/**
     - lib/l10n/app_localizations*.dart
     - '**/*.g.dart'
+    - build/**
+    - android/**
+    - ios/**

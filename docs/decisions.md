@@ -183,3 +183,37 @@ la regla 0.4 del documento de especificación.
   Revisar este ADR cuando se implemente la vista "Hoy" (M3) o "¿Qué hago
   ahora?" (M7), que sí necesitan aritmética de calendario con zona horaria.
 - **Fecha:** 2026-09-21.
+
+## ADR-009 — SDK de Flutter instalado; ADR-003 superada
+
+- **Contexto:** ADR-003 (M0) documentó que el contenedor de desarrollo no
+  tenía SDK de Flutter y que el esqueleto móvil no se pudo verificar. Al
+  empezar M3 había acceso a red y espacio en disco suficientes para
+  instalar el SDK.
+- **Decisión:** se instaló Flutter 3.47.5 stable en `/opt/flutter`
+  (`PATH="/opt/flutter/bin:$PATH"`, agregado a `~/.bashrc` en este
+  contenedor — no persiste entre sesiones/contenedores nuevos) y se corrió
+  `flutter create --platforms=android,ios --project-name copiloto --org
+  com.copiloto .` sobre `apps/mobile` para generar `android/`, `ios/`,
+  `.metadata` y el `.gitignore` propio del paquete Flutter, sin tocar
+  `lib/` ni `test/` existentes. `flutter analyze` y `flutter test` corren
+  de verdad desde ahora.
+- **Verificación real reveló 3 bugs en el código de M0** (nunca antes
+  ejecutado), corregidos en este commit:
+  1. `pubspec.yaml` fijaba `intl: ^0.19.0`; el `flutter_localizations`
+     de este SDK requiere `^0.20.3` — `flutter pub get` fallaba.
+  2. `test/widget_test.dart` montaba `CopilotoApp()` sin envolverlo en
+     `ProviderScope`, y `HomeScreen` usa Riverpod (`ConsumerWidget`) →
+     `Bad state: No ProviderScope found`.
+  3. El mismo test dejaba pendiente un timer de dio (el chequeo real de
+     `/healthz` en `HomeScreen`) al terminar, violando la regla de
+     `flutter_test` de no dejar timers vivos tras destruir el árbol de
+     widgets; se resolvió sobreescribiendo `apiClientProvider` con un
+     `_FakeApiClient` en el test — los tests de widgets no deben pegarle
+     a la red real.
+- **Consecuencias:** `apps/mobile/README.md` y las notas de ADR-003 sobre
+  "no verificado" quedan obsoletas para este entorno; **no** se borra
+  ADR-003 (es historial), pero deja de aplicar. Si una sesión futura corre
+  en un contenedor sin este SDK persistido, hay que reinstalarlo (este
+  ADR documenta el comando exacto) antes de tocar `apps/mobile`.
+- **Fecha:** 2026-09-21.

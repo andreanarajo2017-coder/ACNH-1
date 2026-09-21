@@ -65,9 +65,9 @@ entre tests — ver ADR-006.
 
 ### Mobile (`apps/mobile`)
 
-Requiere el SDK de Flutter instalado localmente (no disponible en el
-contenedor donde se generó el esqueleto de M0 — ver `docs/decisions.md`,
-ADR-003, y `apps/mobile/README.md` para el setup de primera vez).
+Requiere el SDK de Flutter (3.4+) instalado localmente. `android/` e `ios/`
+ya están generados y en el repo desde M3 (ADR-009); si faltan, ver
+`apps/mobile/README.md`.
 
 ```bash
 flutter pub get

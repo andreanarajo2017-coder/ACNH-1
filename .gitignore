@@ -31,6 +31,10 @@ apps/mobile/**/generated_plugin_registrant.dart
 # Generated OpenAPI client (regenerated in CI)
 apps/mobile/lib/generated/
 
+# Generated from lib/l10n/app_*.arb by `flutter gen-l10n` (auto-runs on
+# `flutter pub get` because pubspec.yaml sets `generate: true`).
+apps/mobile/lib/l10n/app_localizations*.dart
+
 # IDE
 .vscode/
 .idea/
