@@ -122,3 +122,64 @@ la regla 0.4 del documento de especificación.
   `test/helpers/app.ts`) y no asumir aislamiento entre archivos más allá
   del orden secuencial.
 - **Fecha:** 2026-09-20.
+
+## ADR-007 — Row-Level Security: conexión dedicada por request, `set_config` en vez de `SET ... = $1`
+
+- **Contexto:** la sección 6 pide RLS por `user_id` como defensa en
+  profundidad. La API usa un `pg.Pool` compartido; para que las políticas
+  de RLS vean el `user_id` correcto, cada query autenticada necesita
+  ejecutarse en una conexión donde se haya fijado `app.user_id`, y esa
+  conexión no puede volver al pool con el valor de otro usuario todavía
+  puesto. Además, `SET app.user_id = $1` **no es sintaxis válida** en
+  Postgres (el comando `SET` no acepta parámetros enlazados) — se
+  reprodujo como `syntax error at or near "$1"` al escribirlo así en un
+  primer intento.
+- **Decisión:** el `preHandler` `authenticate`
+  (`apps/api/src/plugins/auth.ts`) hace `pool.connect()`, corre
+  `SELECT set_config('app.user_id', $1, false)` (síncrona la función, sí
+  soporta parámetros) y expone `request.db`/`request.dbClient`; un hook
+  global `onResponse` en `app.ts` hace `RESET app.user_id` y libera la
+  conexión al pool. Los módulos de dominio (M2+) usan `request.db`, no el
+  `db` global de la app. Dentro de una transacción ya abierta (p. ej. el
+  alta de categorías semilla en `AuthService.register`, que corre en la
+  conexión sin contexto RLS porque el registro es previo a tener
+  `request.userId`) se usa `set_config(..., true)` (equivalente a `SET
+  LOCAL`, vigente solo para esa transacción).
+- **Alternativas:** RLS con `SET LOCAL` dentro de una transacción explícita
+  por request (más invasivo: obliga a envolver cada handler en una
+  transacción aunque no la necesite); confiar solo en el filtro `WHERE
+  user_id = ...` de la capa de aplicación sin RLS (pierde la defensa en
+  profundidad que pide la sección 6).
+- **Consecuencias:** todas las tablas de dominio (`categories`, `people`,
+  `tasks`, `events`, `inbox_items`, `item_relations`, `reminders`) tienen
+  `ENABLE` + `FORCE ROW LEVEL SECURITY` (FORCE es necesario porque la app
+  se conecta con el rol dueño de las tablas, que por defecto se salta RLS)
+  y una policy `USING/WITH CHECK (user_id = current_setting('app.user_id',
+  true)::uuid)`; sin `app.user_id` seteado, las políticas deniegan todo
+  por defecto. Cualquier tabla de dominio nueva debe sumarse a la migración
+  de RLS y sus tests deben usar `request.db`, nunca el `db` de la app.
+- **Fecha:** 2026-09-21.
+
+## ADR-008 — Presets de "posponer" sin límites de día calendario por zona horaria
+
+- **Contexto:** F06 define presets de posponer tarea ("más tarde hoy" = +3 h,
+  "mañana", "la semana que viene", "elegir"). "Mañana" y "la semana que
+  viene" sugieren un límite de *día calendario* (p. ej. "mañana" debería
+  significar el inicio del día siguiente en la zona horaria del usuario),
+  pero calcular eso bien requiere la zona horaria del usuario (ya existe en
+  `users.timezone`) y aritmética de calendario con esa zona — trabajo real
+  que hoy no tiene un consumidor (la UI de "Tareas" con las vistas Hoy/
+  Vencidas es M3; el algoritmo de "¿Qué hago ahora?" que realmente decide
+  qué es "hoy" es M7).
+- **Decisión:** para M2, los tres presets son desplazamientos fijos desde
+  `Clock.now()`: `later_today` = +3 h, `tomorrow` = +24 h, `next_week` =
+  +7 días. `TasksService.postpone` (`src/modules/tasks/tasks.service.ts`)
+  documenta esto en un comentario.
+- **Alternativas:** implementar ya el cálculo con zona horaria (trabajo
+  especulativo sin nada que lo consuma todavía, contra la regla de no
+  construir para requisitos hipotéticos).
+- **Consecuencias:** "mañana" pospuesto a las 23:50 vence a las 23:50 del
+  día siguiente, no a las 00:00 — puede sentirse raro en el límite del día.
+  Revisar este ADR cuando se implemente la vista "Hoy" (M3) o "¿Qué hago
+  ahora?" (M7), que sí necesitan aritmética de calendario con zona horaria.
+- **Fecha:** 2026-09-21.

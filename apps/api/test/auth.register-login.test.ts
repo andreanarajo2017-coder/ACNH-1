@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { closeTestApp, createTestApp, truncateAll } from './helpers/app.js';
+import { closeTestApp, createTestApp, queryAsUser, truncateAll } from './helpers/app.js';
 
 describe('auth: register & login', () => {
   let ctx: Awaited<ReturnType<typeof createTestApp>>;
@@ -38,7 +38,9 @@ describe('auth: register & login', () => {
     expect(me.statusCode).toBe(200);
     expect(me.json().email).toBe('ana@example.com');
 
-    const categories = await ctx.db.execute(
+    const categories = await queryAsUser(
+      ctx.pool,
+      me.json().id,
       sql`SELECT name FROM categories WHERE user_id = ${me.json().id}`,
     );
     expect(categories.rows).toHaveLength(9);

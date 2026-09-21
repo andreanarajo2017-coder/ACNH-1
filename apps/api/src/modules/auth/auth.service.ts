@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import {
   authIdentities,
@@ -117,6 +117,14 @@ export class AuthService {
         });
 
         await tx.insert(userSettings).values({ userId: user.id });
+
+        // `categories` has RLS forced (section 6); this transaction runs on
+        // the app-wide connection with no `app.user_id` set (registration
+        // happens before there's a request.userId to scope a connection to
+        // — see plugins/auth.ts), so satisfy the policy for the rest of
+        // this transaction only. `SET LOCAL ... = $1` isn't valid syntax in
+        // Postgres (SET doesn't take bind parameters); set_config() does.
+        await tx.execute(sql`SELECT set_config('app.user_id', ${user.id}, true)`);
 
         await tx.insert(categories).values(
           DEFAULT_CATEGORIES.map((c) => ({

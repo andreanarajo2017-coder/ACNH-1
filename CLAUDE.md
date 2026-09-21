@@ -14,7 +14,7 @@ identificadores: inglés.
 
 Implementación por hitos, **M0 → M8 en orden** (sección 12 de la
 especificación); P1/P2 solo después de cerrar M8, salvo *feature flags*
-explícitos. Estado actual: **M1 completado** (ver `docs/decisions.md`).
+explícitos. Estado actual: **M2 completado** (ver `docs/decisions.md`).
 
 ## Estructura del repositorio
 
@@ -99,8 +99,11 @@ curl http://localhost:3000/readyz   # 200 solo si la DB responde
   `due_date` (tipo `date`), nunca como medianoche (R-04).
 - **Aislamiento por usuario (R-13):** todo recurso pertenece a un
   `user_id`; acceder al recurso de otro usuario devuelve `404`, nunca
-  `403`. RLS de Postgres como defensa en profundidad además del filtro en
-  la capa de datos (a partir de M2).
+  `403`. Filtro `WHERE user_id = ...` en la capa de datos (defensa
+  primaria) + RLS de Postgres forzada en cada tabla de dominio (defensa en
+  profundidad, ver ADR-007). Los módulos de M2+ usan `request.db` (la
+  conexión con contexto RLS del `preHandler` `authenticate`,
+  `src/plugins/auth.ts`), nunca el `db` global de la app.
 - **Soft delete y emails:** `deleted_at` en vez de borrar filas; `users`
   usa un índice único **parcial** en `email` (`WHERE deleted_at IS NULL`),
   no un `UNIQUE` simple, para que una cuenta eliminada libere su email de
@@ -150,8 +153,9 @@ Detenerse a preguntar solo ante decisiones difíciles de revertir.
 
 ## Próximo hito
 
-**M2 — Dominio base:** CRUD de personas, categorías, tareas, eventos,
-inbox, recordatorios (modelo), `GET /calendar`; Row-Level Security en
-Postgres + test parametrizado de aislamiento entre usuarios (404 al acceder
-al recurso de otro usuario, para cada recurso). Ver sección 5 (F05, F06,
-F08), sección 6 (modelo de datos) y sección 12 de la especificación.
+**M3 — App base manual:** Onboarding (F02), navegación, Tareas, Calendario,
+Personas, Inbox (alta manual), Perfil — todo en `apps/mobile` (Flutter)
+consumiendo la API que ya expone M2. Ver sección 5 (F02, F06, F07 P0),
+sección 9 (pantallas) y sección 12 de la especificación. Recordar generar
+el cliente Dart desde `openapi.json` en cuanto haya SDK de Flutter
+disponible (ver ADR-002 y ADR-003).

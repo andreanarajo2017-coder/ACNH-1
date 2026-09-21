@@ -1,6 +1,7 @@
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
+import type pg from 'pg';
 import { buildApp } from '../../src/app.js';
 import { loadEnv } from '../../src/config/env.js';
 import { createDb, createDbPool } from '../../src/db/client.js';
@@ -40,8 +41,25 @@ export async function createTestApp(initialTime = '2026-09-21T09:00:00-03:00') {
 
 export async function truncateAll(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
   await db.execute(
-    sql`TRUNCATE TABLE users, auth_identities, refresh_tokens, user_settings, categories, login_attempts, password_reset_tokens RESTART IDENTITY CASCADE`,
+    sql`TRUNCATE TABLE users, auth_identities, refresh_tokens, user_settings, categories, login_attempts, password_reset_tokens, people, tasks, events, inbox_items, item_relations, reminders RESTART IDENTITY CASCADE`,
   );
+}
+
+// Domain tables have RLS forced (M2, docs/decisions.md ADR-007); a query
+// against the app-wide pool-backed `db` has no `app.user_id` set and so
+// sees zero rows by design. This runs `query` on a single checked-out
+// client with the RLS context set, like an authenticated request would.
+export async function queryAsUser(pool: pg.Pool, userId: string, query: SQL) {
+  const client = await pool.connect();
+  try {
+    // is_local=false: without an explicit transaction wrapping both
+    // statements, `true` (LOCAL) would revert before the second query runs.
+    await client.query("SELECT set_config('app.user_id', $1, false)", [userId]);
+    return await createDb(client).execute(query);
+  } finally {
+    await client.query('RESET app.user_id');
+    client.release();
+  }
 }
 
 export async function closeTestApp(ctx: {

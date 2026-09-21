@@ -3,6 +3,7 @@ import { relations, sql } from 'drizzle-orm';
 import {
   boolean,
   customType,
+  date,
   index,
   integer,
   pgEnum,
@@ -150,9 +151,180 @@ export const passwordResetTokens = pgTable(
   (table) => [index('password_reset_tokens_user_idx').on(table.userId)],
 );
 
+// --- M2: dominio base (personas, tareas, eventos, inbox, recordatorios) ---
+
+export const relationshipEnum = pgEnum('relationship', [
+  'child',
+  'partner',
+  'family',
+  'friend',
+  'other',
+]);
+
+export const people = pgTable('people', {
+  id: id(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  relationship: relationshipEnum('relationship').notNull(),
+  aliases: text('aliases')
+    .array()
+    .notNull()
+    .default(sql`'{}'::text[]`),
+  birthday: date('birthday'),
+  notes: text('notes'),
+  ...timestamps,
+});
+
+export const taskStatusEnum = pgEnum('task_status', [
+  'pending',
+  'in_progress',
+  'completed',
+  'postponed',
+  'cancelled',
+]);
+export const priorityEnum = pgEnum('priority', ['low', 'medium', 'high']);
+export const taskSourceEnum = pgEnum('task_source', ['manual', 'ai', 'device_calendar']);
+
+export const tasks = pgTable(
+  'tasks',
+  {
+    id: id(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    description: text('description'),
+    status: taskStatusEnum('status').notNull().default('pending'),
+    priority: priorityEnum('priority').notNull().default('medium'),
+    categoryId: uuid('category_id').references(() => categories.id, { onDelete: 'set null' }),
+    personId: uuid('person_id').references(() => people.id, { onDelete: 'set null' }),
+    locationText: text('location_text'),
+    dueDate: date('due_date'),
+    dueAt: timestamp('due_at', { withTimezone: true }),
+    estimatedMinutes: integer('estimated_minutes'),
+    postponedUntil: timestamp('postponed_until', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    recurrenceRule: text('recurrence_rule'),
+    seriesId: uuid('series_id'),
+    source: taskSourceEnum('source').notNull().default('manual'),
+    aiInteractionId: uuid('ai_interaction_id'),
+    ...timestamps,
+  },
+  (table) => [
+    index('tasks_user_status_due_date_idx').on(table.userId, table.status, table.dueDate),
+    index('tasks_user_updated_idx').on(table.userId, table.updatedAt),
+  ],
+);
+
+export const eventSourceEnum = pgEnum('event_source', ['app', 'device_calendar']);
+
+export const events = pgTable(
+  'events',
+  {
+    id: id(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    startAt: timestamp('start_at', { withTimezone: true }),
+    endAt: timestamp('end_at', { withTimezone: true }),
+    allDay: boolean('all_day').notNull().default(false),
+    startDate: date('start_date'),
+    timezone: text('timezone'),
+    locationText: text('location_text'),
+    personId: uuid('person_id').references(() => people.id, { onDelete: 'set null' }),
+    categoryId: uuid('category_id').references(() => categories.id, { onDelete: 'set null' }),
+    recurrenceRule: text('recurrence_rule'),
+    source: eventSourceEnum('source').notNull().default('app'),
+    externalCalendarId: text('external_calendar_id'),
+    externalEventId: text('external_event_id'),
+    aiInteractionId: uuid('ai_interaction_id'),
+    ...timestamps,
+  },
+  (table) => [
+    index('events_user_start_at_idx').on(table.userId, table.startAt),
+    index('events_user_updated_idx').on(table.userId, table.updatedAt),
+  ],
+);
+
+export const inboxStatusEnum = pgEnum('inbox_status', ['unprocessed', 'processed', 'discarded']);
+
+export const inboxItems = pgTable(
+  'inbox_items',
+  {
+    id: id(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    rawText: text('raw_text').notNull(),
+    status: inboxStatusEnum('status').notNull().default('unprocessed'),
+    capturedAt: timestamp('captured_at', { withTimezone: true }).notNull().defaultNow(),
+    aiInteractionId: uuid('ai_interaction_id'),
+    ...timestamps,
+  },
+  (table) => [index('inbox_items_user_status_idx').on(table.userId, table.status)],
+);
+
+export const itemTypeEnum = pgEnum('item_type', ['task', 'event', 'shopping_item']);
+export const relationTypeEnum = pgEnum('relation_type', ['after', 'before', 'related']);
+
+export const itemRelations = pgTable(
+  'item_relations',
+  {
+    id: id(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    fromType: itemTypeEnum('from_type').notNull(),
+    fromId: uuid('from_id').notNull(),
+    toType: itemTypeEnum('to_type').notNull(),
+    toId: uuid('to_id').notNull(),
+    relationType: relationTypeEnum('relation_type').notNull(),
+    ...timestamps,
+  },
+  (table) => [index('item_relations_user_from_idx').on(table.userId, table.fromType, table.fromId)],
+);
+
+export const reminderTargetTypeEnum = pgEnum('reminder_target_type', ['task', 'event']);
+export const reminderTriggerTypeEnum = pgEnum('reminder_trigger_type', [
+  'absolute',
+  'relative_to_start',
+  'location',
+]);
+export const reminderStatusEnum = pgEnum('reminder_status', [
+  'scheduled',
+  'sent',
+  'dismissed',
+  'cancelled',
+]);
+
+export const reminders = pgTable(
+  'reminders',
+  {
+    id: id(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    targetType: reminderTargetTypeEnum('target_type').notNull(),
+    targetId: uuid('target_id').notNull(),
+    triggerType: reminderTriggerTypeEnum('trigger_type').notNull(),
+    triggerAt: timestamp('trigger_at', { withTimezone: true }),
+    offsetMinutes: integer('offset_minutes'),
+    status: reminderStatusEnum('status').notNull().default('scheduled'),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [index('reminders_status_trigger_at_idx').on(table.status, table.triggerAt)],
+);
+
 export const usersRelations = relations(users, ({ many, one }) => ({
   authIdentities: many(authIdentities),
   refreshTokens: many(refreshTokens),
   categories: many(categories),
+  people: many(people),
+  tasks: many(tasks),
+  events: many(events),
   settings: one(userSettings, { fields: [users.id], references: [userSettings.userId] }),
 }));

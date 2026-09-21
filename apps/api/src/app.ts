@@ -9,14 +9,21 @@ import {
 } from 'fastify-type-provider-zod';
 import type { Env } from './config/env.js';
 import type { Db } from './db/client.js';
-import { ApiError, TooManyRequestsError } from './lib/errors.js';
+import { ApiError, TooManyRequestsError, ValidationError } from './lib/errors.js';
 import type { Clock } from './lib/clock.js';
 import type { Mailer } from './lib/mailer.js';
 import { LoginRateLimiter } from './lib/login-rate-limiter.js';
 import { AuthService } from './modules/auth/auth.service.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
+import { calendarRoutes } from './modules/calendar/calendar.routes.js';
+import { categoriesRoutes } from './modules/categories/categories.routes.js';
+import { eventsRoutes } from './modules/events/events.routes.js';
 import { healthRoutes } from './modules/health/health.routes.js';
+import { inboxRoutes } from './modules/inbox/inbox.routes.js';
 import { meRoutes } from './modules/me/me.routes.js';
+import { peopleRoutes } from './modules/people/people.routes.js';
+import { remindersRoutes } from './modules/reminders/reminders.routes.js';
+import { tasksRoutes } from './modules/tasks/tasks.routes.js';
 import { authPlugin } from './plugins/auth.js';
 import { registerOpenApi } from './openapi/register.js';
 
@@ -57,6 +64,22 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       return;
     }
 
+    // Postgres check_violation (e.g. tasks' due_date XOR due_at, events'
+    // start_at/all_day — section 6) surfaces as a business-rule error, not
+    // a 500: the request was well-formed JSON but violates a data rule.
+    if ('code' in error && error.code === '23514') {
+      const businessRuleError = new ValidationError('The request violates a data rule.');
+      reply.status(businessRuleError.statusCode).send({
+        error: {
+          code: businessRuleError.code,
+          message: businessRuleError.message,
+          details: [],
+          request_id: request.id,
+        },
+      });
+      return;
+    }
+
     request.log.error({ err: error, requestId: request.id }, 'unhandled error');
     const statusCode = error.statusCode ?? 500;
     const isClientError = statusCode >= 400 && statusCode < 500;
@@ -72,6 +95,18 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   app.register(cors, { origin: false });
 
+  // Release the per-request RLS-scoped client (see plugins/auth.ts) once the
+  // response has been sent, whether the request succeeded or errored.
+  app.addHook('onResponse', async (request) => {
+    if (request.dbClient) {
+      try {
+        await request.dbClient.query('RESET app.user_id');
+      } finally {
+        request.dbClient.release();
+      }
+    }
+  });
+
   const rateLimiter = new LoginRateLimiter(deps.db, deps.clock);
   const authService = new AuthService(
     deps.db,
@@ -81,7 +116,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     rateLimiter,
   );
 
-  app.register(authPlugin, { authService });
+  app.register(authPlugin, { authService, pool: deps.pool });
 
   registerOpenApi(app);
 
@@ -99,6 +134,19 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.register(
     async (instance) => {
       await meRoutes(instance, { db: deps.db, clock: deps.clock, authService });
+    },
+    { prefix: '/v1' },
+  );
+
+  app.register(
+    async (instance) => {
+      await peopleRoutes(instance, { clock: deps.clock });
+      await categoriesRoutes(instance, { clock: deps.clock });
+      await tasksRoutes(instance, { clock: deps.clock });
+      await eventsRoutes(instance, { clock: deps.clock });
+      await inboxRoutes(instance, { clock: deps.clock });
+      await remindersRoutes(instance, { clock: deps.clock });
+      await calendarRoutes(instance);
     },
     { prefix: '/v1' },
   );
