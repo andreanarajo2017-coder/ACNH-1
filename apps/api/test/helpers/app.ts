@@ -6,6 +6,8 @@ import { buildApp } from '../../src/app.js';
 import { loadEnv } from '../../src/config/env.js';
 import { createDb, createDbPool } from '../../src/db/client.js';
 import { FixedClock } from '../../src/lib/clock.js';
+import { FakeProvider } from '../../src/lib/llm/fake-provider.js';
+import type { LlmProvider } from '../../src/lib/llm/provider.js';
 import type { Mailer } from '../../src/lib/mailer.js';
 
 const TEST_DATABASE_URL =
@@ -21,7 +23,10 @@ export class RecordingMailer implements Mailer {
   }
 }
 
-export async function createTestApp(initialTime = '2026-09-21T09:00:00-03:00') {
+export async function createTestApp(
+  initialTime = '2026-09-21T09:00:00-03:00',
+  llmProvider: LlmProvider = new FakeProvider(),
+) {
   const env = loadEnv({ NODE_ENV: 'test', DATABASE_URL: TEST_DATABASE_URL } as NodeJS.ProcessEnv);
   const pool = createDbPool(env.DATABASE_URL);
   const db = createDb(pool);
@@ -33,7 +38,7 @@ export async function createTestApp(initialTime = '2026-09-21T09:00:00-03:00') {
 
   const clock = new FixedClock(new Date(initialTime));
   const mailer = new RecordingMailer();
-  const app = buildApp({ env, clock, pool, db, mailer });
+  const app = buildApp({ env, clock, pool, db, mailer, llmProvider, llmProviderName: 'fake' });
   await app.ready();
 
   return { app, db, pool, clock, mailer };
@@ -41,7 +46,7 @@ export async function createTestApp(initialTime = '2026-09-21T09:00:00-03:00') {
 
 export async function truncateAll(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
   await db.execute(
-    sql`TRUNCATE TABLE users, auth_identities, refresh_tokens, user_settings, categories, login_attempts, password_reset_tokens, people, tasks, events, inbox_items, item_relations, reminders RESTART IDENTITY CASCADE`,
+    sql`TRUNCATE TABLE users, auth_identities, refresh_tokens, user_settings, categories, login_attempts, password_reset_tokens, people, tasks, events, inbox_items, item_relations, reminders, ai_interactions RESTART IDENTITY CASCADE`,
   );
 }
 

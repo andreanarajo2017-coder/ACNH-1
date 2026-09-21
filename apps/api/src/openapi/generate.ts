@@ -3,6 +3,7 @@ import { buildApp } from '../app.js';
 import { loadEnv } from '../config/env.js';
 import { createDb, createDbPool } from '../db/client.js';
 import { SystemClock } from '../lib/clock.js';
+import { FakeProvider } from '../lib/llm/fake-provider.js';
 import { ConsoleMailer } from '../lib/mailer.js';
 
 async function main() {
@@ -14,6 +15,8 @@ async function main() {
     pool,
     db: createDb(pool),
     mailer: new ConsoleMailer(),
+    llmProvider: new FakeProvider(),
+    llmProviderName: 'fake',
   });
 
   await app.ready();

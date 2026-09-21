@@ -1,0 +1,18 @@
+{
+  "id": "G-12",
+  "input": "Reunión con Pedro a las 15.",
+  "output": {
+    "items": [
+      {
+        "ref": "i1",
+        "kind": "event",
+        "title": "Reunión con Pedro",
+        "start_at": "2026-09-21T15:00:00-03:00",
+        "person_name_unresolved": "Pedro",
+        "missing_fields": ["date"],
+        "inferred_fields": []
+      }
+    ],
+    "relations": []
+  }
+}

@@ -291,3 +291,120 @@ la regla 0.4 del documento de especificación.
   requiere borrarlo y crearlo de nuevo por ahora; revisar este ADR si se
   extiende `PATCH /v1/events/:id` en un hito posterior.
 - **Fecha:** 2026-09-21.
+
+## ADR-013 — `ai_interactions` como almacenamiento del `parse`; dos relojes de expiración distintos
+
+- **Contexto:** 8.1 exige que un `parse` expire a los 30 min si no se
+  confirma, y 8.3 permite continuarlo (`parse_id` + `answers`) o
+  confirmarlo (`commit`) de forma idempotente; la sección 6 no define una
+  tabla separada para ese estado intermedio, solo `ai_interactions`
+  (pensada para el log/retención de 10.5). Además, 10.5 pide purgar
+  `ai_interactions.input_text/output_json` a los 30 **días** — un reloj
+  totalmente distinto del de 30 **minutos** del parse.
+- **Decisión:** `ai_interactions` hace las dos cosas: es el log de la
+  interacción **y** el almacenamiento del `parse` en curso
+  (`id` = `parse_id`, `output_json` guarda ítems/relaciones/aclaraciones y,
+  tras el commit, el resultado para poder responder repeticiones
+  idempotentes — AC-F04-07). `expires_at` se usa únicamente para la
+  ventana de 30 minutos de 8.1; la purga de 30 días de 10.5 no tiene
+  columna propia (se calcularía con `created_at < now() - 30 días`) y
+  **no** se implementa todavía: requiere un scheduler (pg-boss, D-05), que
+  recién se instala en M6.
+- **Alternativas:** una tabla `parses` separada de `ai_interactions`
+  (duplica casi todas las columnas sin necesidad); mantener el `parse` en
+  memoria (viola 10.2, la API debe ser *stateless*).
+- **Consecuencias:** hasta M6, `ai_interactions` crece sin purgarse
+  automáticamente — aceptable para el volumen de desarrollo/pruebas de
+  este hito, pero **hay que retomar este ADR en M6** para agregar el job
+  de purga de 10.5 antes de producción real.
+- **Fecha:** 2026-09-21.
+
+## ADR-014 — Validaciones 8.4 como unión LLM+backend; placeholders de fecha/hora para aclaraciones
+
+- **Contexto:** R-01/8.4.2 dicen que el backend, no el LLM, decide qué
+  campo falta — pero algunas aclaraciones (G-10 "el lunes", G-12 "a las
+  15" sin día) dependen de un juicio de lenguaje natural que el backend no
+  puede reconstruir solo mirando qué campos están vacíos: si el LLM ya
+  completó una fecha *provisoria* (p. ej. "hoy" como candidato más
+  cercano) para poder devolver un `start_at` válido, el campo ya no está
+  "vacío" desde el punto de vista mecánico del backend.
+- **Decisión:** `deriveMissingFields` (`ai.validation.ts`) calcula la
+  **unión** de lo que el LLM reportó en `missing_fields` con lo que el
+  backend puede verificar mecánicamente (título vacío; evento sin fecha
+  ni hora en absoluto) — nunca resta lo que el LLM marcó. El LLM (real o
+  `FakeProvider`) sigue la convención de dejar un valor *placeholder* en
+  `start_at`/`due_at`/`start_date` cuando conoce una parte del dato
+  (fecha o wall-clock time) pero no la otra, en vez de dejar el campo
+  vacío; `applyAnswer` combina ese placeholder con la respuesta del
+  usuario en vez de reconstruir la fecha desde cero.
+- **Alternativas:** que el backend reimplemente el algoritmo de
+  resolución de fechas relativas de R-05/R-06 para decidir cuándo
+  preguntar (duplica lógica que ya vive en el prompt/LLM y en los
+  fixtures, y contradice "el LLM interpreta, el backend valida").
+- **Consecuencias:** un proveedor real que no siga la convención del
+  placeholder (por ejemplo, deja el campo completamente vacío en vez de
+  poner la fecha/hora provisoria) haría que el backend pierda la
+  posibilidad de combinar la respuesta del usuario con el dato parcial ya
+  conocido — el prompt (`ai.prompt.ts`, regla R-06) documenta la
+  convención explícitamente para mitigarlo.
+- **Fecha:** 2026-09-21.
+
+## ADR-015 — `AnthropicProvider`: salida estructurada con JSON Schema crudo, no `zodOutputFormat`
+
+- **Contexto:** el SDK de Anthropic (`@anthropic-ai/sdk`) expone
+  `zodOutputFormat()` como atajo para salida estructurada, pero internamente
+  usa `zod/v4` (`z.toJSONSchema`) — un *submódulo* de compatibilidad que
+  trae el paquete `zod` 3.25+, con una representación interna distinta de
+  la del `zod` "v3" (`import { z } from 'zod'`) que usa el resto de este
+  backend (D-02). Pasarle un schema construido con el `zod` de siempre a
+  `zodOutputFormat()` es un riesgo real de incompatibilidad silenciosa.
+- **Decisión:** `AnthropicProvider` arma el JSON Schema a mano con
+  `zod-to-json-schema` (compatible con `zod/v3`, `$refStrategy: 'none'`
+  para no depender de `$ref`) y lo manda directo en
+  `output_config.format = { type: 'json_schema', schema }` vía
+  `client.messages.create()`; el texto de la respuesta se parsea y valida
+  con el mismo schema Zod de siempre (`req.schema.safeParse`), sin pasar
+  por `client.messages.parse()`. `LlmProvider.generateStructured`
+  (`lib/llm/provider.ts`) expone `schema: z.ZodType<T, ZodTypeDef,
+  unknown>` — Zod, no un JSON Schema crudo, pese a que 8.1 describe la
+  interfaz con `jsonSchema: object` — para que `FakeProvider` y
+  `AnthropicProvider` compartan un único schema fuente de verdad, acorde a
+  D-02 (Zod como validación en todo el backend).
+- **Alternativas:** agregar `zod/v4` como dependencia directa solo para
+  esta llamada (dos versiones de Zod conviviendo en el mismo paquete,
+  confuso y frágil); usar `zodOutputFormat` igual y confiar en que
+  funcione (sin garantía, no documentado como soportado para `zod` v3).
+- **Consecuencias:** si el SDK de Anthropic cambia la forma de
+  `output_config.format`, hay que actualizar solo `anthropic-provider.ts`;
+  revisar este ADR si en el futuro se agrega soporte oficial de
+  `zod-to-json-schema` (u otra utilidad) certificado para `zod/v4`.
+- **Fecha:** 2026-09-21.
+
+## ADR-016 — Continuación de aclaraciones sin nueva llamada al LLM; `shopping_item` se previsualiza pero no se confirma (P1/M9)
+
+- **Contexto:** dos límites de alcance de M4: (1) 8.3 permite continuar un
+  `parse` con `answers`, y no aclara si eso implica una nueva llamada al
+  LLM; (2) los fixtures G-09 (dos `shopping_item`) están en el set de
+  8.6, pero F09 (listas de compras) es P1/M9 — no existen las tablas
+  `shopping_lists`/`shopping_items` todavía.
+- **Decisión:** (1) `continueParse` (`ai.service.ts`) aplica la respuesta
+  directamente sobre el ítem almacenado (ver ADR-014) sin volver a
+  invocar `LlmProvider` — los tipos de respuesta de una `Clarification`
+  (`time`/`date`/`choice`/`text`) ya traen un valor lo bastante resuelto
+  como para no necesitar reinterpretación. (2) `POST /v1/ai/parse` sí
+  devuelve ítems `shopping_item` en la vista previa (fiel a los
+  fixtures), pero `POST /v1/ai/parse/{parse_id}/commit` rechaza el commit
+  completo con `422 shopping_lists_not_available` si algún ítem es
+  `shopping_item`.
+- **Alternativas:** (1) volver a llamar al LLM en cada ronda de aclaración
+  (gasto y latencia innecesarios para una respuesta ya estructurada,
+  contradice el límite de 8.1 de "máx. 3 rondas" pensado como límite de
+  interacción, no de llamadas al modelo). (2) crear ya las tablas de
+  compras para no bloquear el commit (adelanta trabajo de M9 fuera de
+  alcance de este hito).
+- **Consecuencias:** una respuesta de texto libre mal formada en una
+  aclaración no se corrige con una segunda pasada por el LLM — se
+  revalida con las mismas reglas 8.4 y puede volver a pedir aclaración;
+  la UI de M5 (F03/F04) deberá filtrar o deshabilitar la confirmación de
+  ítems `shopping_item` hasta M9.
+- **Fecha:** 2026-09-21.

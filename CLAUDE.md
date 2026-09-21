@@ -14,7 +14,7 @@ identificadores: inglés.
 
 Implementación por hitos, **M0 → M8 en orden** (sección 12 de la
 especificación); P1/P2 solo después de cerrar M8, salvo *feature flags*
-explícitos. Estado actual: **M3 completado** (ver `docs/decisions.md`).
+explícitos. Estado actual: **M4 completado** (ver `docs/decisions.md`).
 
 ## Estructura del repositorio
 
@@ -62,6 +62,14 @@ contra un Postgres real (`DATABASE_URL`, por defecto
 Los archivos de test corren en serie (`fileParallelism: false` en
 `vitest.config.ts`) porque comparten esa base y cada uno hace `TRUNCATE`
 entre tests — ver ADR-006.
+
+Los tests de IA (`test/ai-parse.test.ts`, `test/ai-commit.test.ts`) usan
+`FakeProvider` (`src/lib/llm/fake-provider.ts`), que responde por fixture
+desde `test/fixtures/ai-parse/*.json` (G-01…G-14, sección 8.6) — nunca
+llaman a la API real de Anthropic. Sin `ANTHROPIC_API_KEY` en el entorno,
+`npm run dev`/`npm start` también usan `FakeProvider` (falla al arrancar en
+`NODE_ENV=production` sin la key); con la key configurada usan
+`AnthropicProvider` (`src/lib/llm/anthropic-provider.ts`, D-04).
 
 ### Mobile (`apps/mobile`)
 
@@ -153,12 +161,17 @@ Detenerse a preguntar solo ante decisiones difíciles de revertir.
 
 ## Próximo hito
 
-**M4 — Servicio de IA:** `LlmProvider` + `FakeProvider` + adaptador real,
-armado de contexto y validaciones (sección 8.4), endpoints `POST /v1/ai/parse`
-y `POST /v1/ai/commit` en `apps/api`, fixtures G-01…G-14, límites y
-retención (10.4). Ver sección 8 completa y sección 12 de la especificación.
-Criterio de salida: tests de fixtures en verde con `FakeProvider`; `commit`
-atómico e idempotente. La UI de captura con IA (F03/F04, "Organizar con
-IA" desde el Inbox) es M5, después de que `/ai/parse` y `/ai/commit`
-existan — por ahora `apps/mobile` solo guarda capturas manuales en el
-Inbox (ver `capture_sheet.dart`).
+**M5 — Captura y vista previa:** conectar `apps/mobile` a `POST
+/v1/ai/parse` y `POST /v1/ai/parse/{parse_id}/commit` (ya expuestos desde
+M4): la hoja "¿Qué necesitas?" (`capture_sheet.dart`) deja de guardar
+directo al Inbox y pasa a llamar `/ai/parse`; vista previa editable por
+ítem (tipo, título, fecha, hora, persona, categoría — con etiqueta
+"inferido" en los campos de `inferred_fields`), una pregunta de aclaración
+a la vez (`clarifications`, máx. 3 rondas), confirmar → `commit` /
+descartar → "Guardar en Inbox". Inbox suma la acción "Organizar con IA"
+por ítem. Degradación si el parse tarda > 15 s o falla: mensaje claro +
+"Guardar en Inbox" (AC-F03-03, ya cubierto en el backend por `status:
+'error'`). Ver sección 8 (contrato ya implementado), F03/F04/F05 (sección
+5) y sección 9 (wireframes de vista previa y aclaraciones) de la
+especificación. Criterio de salida: AC-F03, AC-F04, AC-F05 end-to-end en
+la app (no solo en `apps/api`, ya cubiertas ahí desde M4).

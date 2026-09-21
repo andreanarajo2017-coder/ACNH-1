@@ -6,6 +6,7 @@ import {
   date,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -317,6 +318,42 @@ export const reminders = pgTable(
     ...timestamps,
   },
   (table) => [index('reminders_status_trigger_at_idx').on(table.status, table.triggerAt)],
+);
+
+// --- M4: servicio de IA (sección 8) ---
+
+// `ai_interactions` doubles as the persisted state of an in-flight `parse`
+// (8.1: expira a los 30 min, ver `expiresAt`) — there's no separate table
+// for that. The 30-day retention purge (10.5) is a scheduled job deferred
+// to M6 (pg-boss, D-05); see docs/decisions.md.
+export const aiInteractionStatusEnum = pgEnum('ai_interaction_status', [
+  'ready',
+  'needs_clarification',
+  'no_actionable_items',
+  'error',
+  'committed',
+]);
+
+export const aiInteractions = pgTable(
+  'ai_interactions',
+  {
+    id: id(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    inputText: text('input_text').notNull(),
+    outputJson: jsonb('output_json').notNull(),
+    status: aiInteractionStatusEnum('status').notNull(),
+    provider: text('provider').notNull(),
+    model: text('model').notNull(),
+    latencyMs: integer('latency_ms'),
+    tokensIn: integer('tokens_in'),
+    tokensOut: integer('tokens_out'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('ai_interactions_user_created_idx').on(table.userId, table.createdAt)],
 );
 
 export const usersRelations = relations(users, ({ many, one }) => ({

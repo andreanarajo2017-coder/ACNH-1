@@ -1,0 +1,39 @@
+{
+  "id": "G-06",
+  "input": "El jueves tengo pediatra con Mateo a las 17, después tengo que pasar por Farmacity y comprarle el regalo a mi mamá.",
+  "output": {
+    "items": [
+      {
+        "ref": "i1",
+        "kind": "event",
+        "title": "Pediatra",
+        "start_at": "2026-09-24T17:00:00-03:00",
+        "person_id": "$person:Mateo",
+        "missing_fields": [],
+        "inferred_fields": []
+      },
+      {
+        "ref": "i2",
+        "kind": "task",
+        "title": "Pasar por Farmacity",
+        "due_date": "2026-09-24",
+        "location_text": "Farmacity",
+        "missing_fields": [],
+        "inferred_fields": ["due_date"]
+      },
+      {
+        "ref": "i3",
+        "kind": "task",
+        "title": "Comprar regalo para mamá",
+        "due_date": "2026-09-24",
+        "person_name_unresolved": "mamá",
+        "missing_fields": [],
+        "inferred_fields": ["due_date"]
+      }
+    ],
+    "relations": [
+      { "from": "i2", "to": "i1", "type": "after" },
+      { "from": "i3", "to": "i1", "type": "after" }
+    ]
+  }
+}

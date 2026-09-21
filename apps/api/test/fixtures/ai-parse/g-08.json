@@ -1,0 +1,18 @@
+{
+  "id": "G-08",
+  "input": "Todos los lunes recordar pagar el colegio.",
+  "output": {
+    "items": [
+      {
+        "ref": "i1",
+        "kind": "task",
+        "title": "Pagar el colegio",
+        "due_date": "2026-09-21",
+        "recurrence_rule": "FREQ=WEEKLY;BYDAY=MO",
+        "missing_fields": [],
+        "inferred_fields": ["due_date"]
+      }
+    ],
+    "relations": []
+  }
+}

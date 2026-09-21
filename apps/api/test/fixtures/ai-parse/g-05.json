@@ -1,0 +1,26 @@
+{
+  "id": "G-05",
+  "input": "El sábado a las 10 tengo turno con el dentista y después tengo que comprar el regalo de cumpleaños de Ana.",
+  "output": {
+    "items": [
+      {
+        "ref": "i1",
+        "kind": "event",
+        "title": "Dentista",
+        "start_at": "2026-09-26T10:00:00-03:00",
+        "missing_fields": [],
+        "inferred_fields": []
+      },
+      {
+        "ref": "i2",
+        "kind": "task",
+        "title": "Comprar regalo de cumpleaños para Ana",
+        "due_date": "2026-09-26",
+        "person_name_unresolved": "Ana",
+        "missing_fields": [],
+        "inferred_fields": ["due_date"]
+      }
+    ],
+    "relations": [{ "from": "i2", "to": "i1", "type": "after" }]
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "id": "G-02",
+  "input": "Tengo médico mañana.",
+  "output": {
+    "items": [
+      {
+        "ref": "i1",
+        "kind": "event",
+        "title": "Médico",
+        "start_date": "2026-09-22",
+        "missing_fields": ["start_time"],
+        "inferred_fields": []
+      }
+    ],
+    "relations": []
+  }
+}

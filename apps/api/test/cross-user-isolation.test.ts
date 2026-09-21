@@ -19,6 +19,7 @@ describe('cross-user resource isolation (R-13)', () => {
   let eventId: string;
   let inboxItemId: string;
   let reminderId: string;
+  let parseId: string;
 
   function request(
     method: ApiMethod,
@@ -84,6 +85,11 @@ describe('cross-user resource isolation (R-13)', () => {
       trigger_at: '2026-09-24T16:30:00-03:00',
     });
     reminderId = reminder.json().id;
+
+    const parseRes = await request('POST', '/v1/ai/parse', tokenA, {
+      text: 'Comprar leche mañana.',
+    });
+    parseId = parseRes.json().parse_id;
   });
 
   afterAll(async () => {
@@ -109,6 +115,11 @@ describe('cross-user resource isolation (R-13)', () => {
     ['DELETE', () => `/v1/inbox/${inboxItemId}`, undefined],
     ['PATCH', () => `/v1/reminders/${reminderId}`, { status: 'dismissed' }],
     ['DELETE', () => `/v1/reminders/${reminderId}`, undefined],
+    [
+      'POST',
+      () => `/v1/ai/parse/${parseId}/commit`,
+      { items: [{ ref: 'i1', kind: 'task', title: 'Hacked' }], relations: [] },
+    ],
   ] as [ApiMethod, () => string, Record<string, unknown> | undefined][])(
     '%s %s as a different user returns 404, never 200/403',
     async (method, urlFn, payload) => {
@@ -117,6 +128,15 @@ describe('cross-user resource isolation (R-13)', () => {
       expect(res.json().error.code).toBe('not_found');
     },
   );
+
+  it("continuing another user's parse (answers) as a different user returns 404", async () => {
+    const res = await request('POST', '/v1/ai/parse', tokenB, {
+      parse_id: parseId,
+      answers: [{ clarification_id: 'x', value: 'y' }],
+    });
+    expect(res.statusCode).toBe(404);
+    expect(res.json().error.code).toBe('not_found');
+  });
 
   it('the owning user can still read/act on their own resources (sanity check)', async () => {
     const person = await request('GET', `/v1/people/${personId}`, tokenA);

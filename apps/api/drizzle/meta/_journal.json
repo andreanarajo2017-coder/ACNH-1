@@ -22,6 +22,20 @@
       "when": 1790011946634,
       "tag": "0002_domain_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790017801589,
+      "tag": "0003_unique_boom_boom",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790017900000,
+      "tag": "0004_ai_interactions_rls",
+      "breakpoints": true
     }
   ]
 }

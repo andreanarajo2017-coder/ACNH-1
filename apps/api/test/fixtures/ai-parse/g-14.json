@@ -1,0 +1,17 @@
+{
+  "id": "G-14",
+  "input": "El lunes a las 8 llevar el auto al taller.",
+  "output": {
+    "items": [
+      {
+        "ref": "i1",
+        "kind": "task",
+        "title": "Llevar el auto al taller",
+        "due_at": "2026-09-28T08:00:00-03:00",
+        "missing_fields": [],
+        "inferred_fields": ["due_date"]
+      }
+    ],
+    "relations": []
+  }
+}

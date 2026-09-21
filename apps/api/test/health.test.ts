@@ -4,6 +4,7 @@ import { buildApp } from '../src/app.js';
 import { loadEnv } from '../src/config/env.js';
 import { createDb } from '../src/db/client.js';
 import { FixedClock } from '../src/lib/clock.js';
+import { FakeProvider } from '../src/lib/llm/fake-provider.js';
 import type { Mailer } from '../src/lib/mailer.js';
 
 describe('health routes', () => {
@@ -21,6 +22,8 @@ describe('health routes', () => {
       pool,
       db: createDb(pool),
       mailer: fakeMailer,
+      llmProvider: new FakeProvider(),
+      llmProviderName: 'fake',
     });
     await app.ready();
   });

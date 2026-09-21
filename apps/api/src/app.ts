@@ -11,8 +11,10 @@ import type { Env } from './config/env.js';
 import type { Db } from './db/client.js';
 import { ApiError, TooManyRequestsError, ValidationError } from './lib/errors.js';
 import type { Clock } from './lib/clock.js';
+import type { LlmProvider } from './lib/llm/provider.js';
 import type { Mailer } from './lib/mailer.js';
 import { LoginRateLimiter } from './lib/login-rate-limiter.js';
+import { aiRoutes } from './modules/ai/ai.routes.js';
 import { AuthService } from './modules/auth/auth.service.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { calendarRoutes } from './modules/calendar/calendar.routes.js';
@@ -33,6 +35,8 @@ export interface AppDeps {
   pool: pg.Pool;
   db: Db;
   mailer: Mailer;
+  llmProvider: LlmProvider;
+  llmProviderName: string;
 }
 
 export function buildApp(deps: AppDeps): FastifyInstance {
@@ -147,6 +151,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       await inboxRoutes(instance, { clock: deps.clock });
       await remindersRoutes(instance, { clock: deps.clock });
       await calendarRoutes(instance);
+      await aiRoutes(instance, {
+        clock: deps.clock,
+        llmProvider: deps.llmProvider,
+        providerName: deps.llmProviderName,
+      });
     },
     { prefix: '/v1' },
   );

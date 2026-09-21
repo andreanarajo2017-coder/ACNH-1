@@ -1,0 +1,26 @@
+{
+  "id": "G-07",
+  "input": "Mañana a las 8 llevar a Lucas al colegio y comprar leche cuando vuelva.",
+  "output": {
+    "items": [
+      {
+        "ref": "i1",
+        "kind": "task",
+        "title": "Llevar a Lucas al colegio",
+        "due_at": "2026-09-22T08:00:00-03:00",
+        "person_name_unresolved": "Lucas",
+        "missing_fields": [],
+        "inferred_fields": []
+      },
+      {
+        "ref": "i2",
+        "kind": "task",
+        "title": "Comprar leche",
+        "due_date": "2026-09-22",
+        "missing_fields": [],
+        "inferred_fields": ["due_date"]
+      }
+    ],
+    "relations": [{ "from": "i2", "to": "i1", "type": "after" }]
+  }
+}

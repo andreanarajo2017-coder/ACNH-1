@@ -1,0 +1,17 @@
+{
+  "id": "G-03",
+  "input": "Comprar leche mañana.",
+  "output": {
+    "items": [
+      {
+        "ref": "i1",
+        "kind": "task",
+        "title": "Comprar leche",
+        "due_date": "2026-09-22",
+        "missing_fields": [],
+        "inferred_fields": []
+      }
+    ],
+    "relations": []
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "id": "G-09",
+  "input": "Agregá huevos y frutas a la lista del súper.",
+  "output": {
+    "items": [
+      {
+        "ref": "i1",
+        "kind": "shopping_item",
+        "title": "Huevos",
+        "list_hint": "súper",
+        "missing_fields": [],
+        "inferred_fields": []
+      },
+      {
+        "ref": "i2",
+        "kind": "shopping_item",
+        "title": "Frutas",
+        "list_hint": "súper",
+        "missing_fields": [],
+        "inferred_fields": []
+      }
+    ],
+    "relations": []
+  }
+}

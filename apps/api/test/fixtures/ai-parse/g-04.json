@@ -1,0 +1,18 @@
+{
+  "id": "G-04",
+  "input": "El viernes viajamos a Brasil.",
+  "output": {
+    "items": [
+      {
+        "ref": "i1",
+        "kind": "event",
+        "title": "Viaje a Brasil",
+        "all_day": true,
+        "start_date": "2026-09-25",
+        "missing_fields": [],
+        "inferred_fields": []
+      }
+    ],
+    "relations": []
+  }
+}

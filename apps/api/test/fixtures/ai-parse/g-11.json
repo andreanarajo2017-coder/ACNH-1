@@ -1,0 +1,16 @@
+{
+  "id": "G-11",
+  "input": "Recuérdame llamar al colegio.",
+  "output": {
+    "items": [
+      {
+        "ref": "i1",
+        "kind": "task",
+        "title": "Llamar al colegio",
+        "missing_fields": [],
+        "inferred_fields": []
+      }
+    ],
+    "relations": []
+  }
+}
